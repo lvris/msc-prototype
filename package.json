@@ -1,0 +1,22 @@
+{
+  "name": "hypermedia-agent-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Thesis prototype: a fixed generic agent (a/) over hypermedia sites (b1/, b2/ ...). One shared toolchain, one self-contained folder per instance.",
+  "scripts": {
+    "b1:dev": "tsx watch b1/server.ts",
+    "b1:start": "tsx b1/server.ts",
+    "b1:check": "tsx b1/check.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

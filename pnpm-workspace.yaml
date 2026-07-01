@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: set this to true or false
+# pnpm 11 needs this file present; the two settings avoid the interactive
+# "approve build scripts?" prompt and the pre-run dependency verification that
+# otherwise blocks `pnpm dev` / `pnpm check` in a no-build tsx setup.
+onlyBuiltDependencies:
+  - esbuild
+verifyDepsBeforeRun: false
