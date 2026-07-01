@@ -13,7 +13,7 @@ prototype/
 ├── package.json          shared deps + per-instance scripts
 ├── tsconfig.json         one config, includes a/ b1/ b2/
 ├── pnpm-workspace.yaml   pnpm 11 build-script settings
-├── a/                    the fixed generic agent (parsers + discovery loop) — TODO
+├── a/                    the fixed generic agent (parsers + discovery loop) ✅
 ├── b1/                   restaurant-booking site  (native HTML core + htmx boundaries) ✅
 └── b2/                   a second site in a different vocabulary/framework — future
 ```
@@ -31,6 +31,8 @@ site knowledge.
 pnpm install        # once, from this folder
 pnpm b1:dev         # run B1 dev server  → http://localhost:3000
 pnpm b1:check       # B1 HTTP self-check (3 flows + refusal assertions)
+pnpm a:run --goal "Book a table for 2 at 19:00 for Ada Lovelace"   # drive B1 with agent A
+pnpm a:check        # A engine self-check (discover + replay; needs a running B1)
 pnpm typecheck      # type-check the whole prototype/
 ```
 
@@ -41,4 +43,5 @@ include glob).
 ## Status
 
 - `b1/` — done and verified (see `b1/README.md`).
-- `a/` — designed, not built (see `a/README.md`).
+- `a/` — built and verified: native/htmx parsers, discovery, HTTP replay, and a
+  pluggable chooser (manual + local-qwen; Claude stubbed). See `a/README.md`.

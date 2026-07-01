@@ -46,11 +46,11 @@ function renderField(f: Field): string {
 export function renderAffordance(a: Affordance): string {
   if (a.kind === "native") {
     if (a.method === "GET" && !a.fields?.length) {
-      return `<a role="button" href="${a.url}" data-affordance="${a.id}">${esc(a.label)}</a>`;
+      return `<a role="button" href="${a.url}">${esc(a.label)}</a>`;
     }
     const fields = (a.fields ?? []).map(renderField).join("\n");
     return `
-<form method="${a.method}" action="${a.url}" data-affordance="${a.id}">
+<form method="${a.method}" action="${a.url}">
 ${fields}
 <button type="submit">${esc(a.label)}</button>
 </form>`.trim();
@@ -65,7 +65,6 @@ ${fields}
     hasFields ? `hx-include="closest form"` : "",
     a.target ? `hx-target="${a.target}"` : "",
     a.swap ? `hx-swap="${a.swap}"` : "",
-    `data-affordance="${a.id}"`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -97,7 +96,7 @@ export function slotsFragment(session: Session): string {
         return `<li>${o.slot} — <ins>taken</ins></li>`;
       }
       return `<li>
-<form method="post" action="/hold" data-affordance="hold_slot" style="display:inline">
+<form method="post" action="/hold" style="display:inline">
 <input type="hidden" name="slot" value="${o.slot}">
 <button type="submit">Hold ${o.slot}</button>
 </form>

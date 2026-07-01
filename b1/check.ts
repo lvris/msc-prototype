@@ -2,15 +2,19 @@
  * check.ts — minimal HTTP self-check.
  *
  * Boots the server, drives the three demo flows over `fetch`, and prints the
- * affordances each returned representation exposes. It ASSERTS the two thesis
+ * controls each returned representation exposes. It ASSERTS the two thesis
  * properties:
  *   - a `confirmed` representation exposes no slot-change / edit control (locked);
  *   - a `conflict` representation exposes no confirm control (refusal).
  *
- * The tiny `extract()` below reads controls straight out of the returned HTML
- * (native <form>/<a> + htmx hx-* buttons, keyed by `data-affordance`). It is the
- * dumb seed of the future agent-A parsers — same normalized shape {id,method,url}.
+ * `extract()` discovers controls straight from the returned HTML by their NATIVE
+ * semantics — native <a>/<form> and htmx hx-* elements — with NO reliance on any
+ * custom annotation. It keys each control by `{method, url}`, exactly the way the
+ * future agent A perceives a site. B1 must stand alone, so this does not import
+ * from `a/`; it just mirrors the same idea.
  */
+
+import { parseHTML } from "linkedom";
 
 export {}; // make this a module so top-level await is allowed
 
@@ -20,28 +24,42 @@ const BASE = `http://localhost:${process.env.PORT}`;
 await import("./server.ts"); // starts app.listen on PORT
 
 interface Control {
-  id: string;
   method: string;
   url: string;
+  label: string;
 }
 
-/** Pull every control (element carrying data-affordance) out of an HTML string. */
+/** Pull every control out of an HTML string by native/htmx semantics. */
 function extract(html: string): Control[] {
-  const tags = html.match(/<[^>]*\bdata-affordance="[^"]*"[^>]*>/g) ?? [];
+  const { document } = parseHTML(html);
   const out: Control[] = [];
-  for (const tag of tags) {
-    const id = /data-affordance="([^"]+)"/.exec(tag)?.[1] ?? "?";
-    const hx = /\bhx-(get|post|put|delete|patch)="([^"]+)"/.exec(tag);
-    if (hx) {
-      out.push({ id, method: hx[1].toUpperCase(), url: hx[2] });
-    } else if (/^<form\b/.test(tag)) {
-      const method = (/\bmethod="([^"]+)"/.exec(tag)?.[1] ?? "GET").toUpperCase();
-      const url = /\baction="([^"]+)"/.exec(tag)?.[1] ?? "";
-      out.push({ id, method, url });
-    } else if (/^<a\b/.test(tag)) {
-      out.push({ id, method: "GET", url: /\bhref="([^"]+)"/.exec(tag)?.[1] ?? "" });
+
+  // htmx controls: any element carrying an hx-<verb> attribute.
+  for (const el of document.querySelectorAll("[hx-get],[hx-post],[hx-put],[hx-delete]")) {
+    for (const verb of ["get", "post", "put", "delete"]) {
+      const url = el.getAttribute(`hx-${verb}`);
+      if (url) {
+        out.push({ method: verb.toUpperCase(), url, label: (el.textContent ?? "").trim() });
+        break;
+      }
     }
   }
+
+  // native forms — only those with a real submit control (an action-less form
+  // whose only button is an htmx type=button is the htmx parser's job, skipped).
+  for (const form of document.querySelectorAll("form")) {
+    const submit = form.querySelector('button[type="submit"], input[type="submit"]');
+    if (!submit) continue;
+    const method = (form.getAttribute("method") ?? "GET").toUpperCase();
+    const url = form.getAttribute("action") ?? "";
+    out.push({ method, url, label: (submit.textContent ?? "").trim() });
+  }
+
+  // native links.
+  for (const a of document.querySelectorAll("a[href]")) {
+    out.push({ method: "GET", url: a.getAttribute("href") ?? "", label: (a.textContent ?? "").trim() });
+  }
+
   return out;
 }
 
@@ -87,11 +105,12 @@ function assert(cond: boolean, msg: string): void {
 
 function show(label: string, html: string): Control[] {
   const controls = extract(html);
-  const ids = controls.map((c) => `[${c.id}] ${c.method} ${c.url}`);
+  const ids = controls.map((c) => `${c.method} ${c.url} (${c.label})`);
   console.log(`  ${label}: ${ids.length ? ids.join("  ") : "(no controls)"}`);
   return controls;
 }
-const hasId = (cs: Control[], id: string) => cs.some((c) => c.id === id);
+const has = (cs: Control[], method: string, url: string) =>
+  cs.some((c) => c.method === method && c.url === url);
 
 await waitForServer();
 
@@ -105,9 +124,9 @@ await post("/details", { name: "Ada Lovelace", phone: "+358 40 123 4567" });
 show("details_entered", await get("/"));
 await post("/confirm", {});
 const confirmed = show("confirmed", await get("/"));
-assert(hasId(confirmed, "cancel_booking"), "confirmed exposes cancel_booking");
-assert(!hasId(confirmed, "hold_slot"), "confirmed is LOCKED: no slot-change control");
-assert(!hasId(confirmed, "edit_details"), "confirmed is LOCKED: no edit control");
+assert(has(confirmed, "DELETE", "/booking"), "confirmed exposes cancel (DELETE /booking)");
+assert(!has(confirmed, "POST", "/hold"), "confirmed is LOCKED: no slot-change control (POST /hold)");
+assert(!has(confirmed, "POST", "/edit-details"), "confirmed is LOCKED: no edit control (POST /edit-details)");
 
 // ── Scenario 2: locked — a crafted request is refused, not just hidden ──────
 console.log("\n# Scenario 2 — locked action refused by the guard");
@@ -122,12 +141,12 @@ await post("/hold", { slot: "20:00" }); // the contended slot
 await post("/details", { name: "Ada Lovelace", phone: "+358 40 123 4567" });
 await post("/confirm", {}); // conflicts
 const conflict = show("conflict", await get("/"));
-assert(!hasId(conflict, "confirm_booking"), "conflict has NO confirm control ('confirm anyway' is unrepresentable)");
-assert(hasId(conflict, "hold_slot"), "conflict offers pick-another-slot controls");
+assert(!has(conflict, "POST", "/confirm"), "conflict has NO confirm control ('confirm anyway' is unrepresentable)");
+assert(has(conflict, "POST", "/hold"), "conflict offers pick-another-slot controls (POST /hold)");
 await post("/hold", { slot: "19:00" }); // pick a free slot → back to review
 await post("/confirm", {});
 const resolved = show("confirmed (resolved)", await get("/"));
-assert(hasId(resolved, "cancel_booking"), "conflict resolved into a confirmed booking");
+assert(has(resolved, "DELETE", "/booking"), "conflict resolved into a confirmed booking");
 
 // ── Summary ────────────────────────────────────────────────────────────────
 console.log(`\n${failures.length === 0 ? "ALL CHECKS PASSED" : `${failures.length} CHECK(S) FAILED`}`);
