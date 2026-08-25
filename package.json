@@ -8,6 +8,7 @@
     "b1:dev": "tsx watch b1/server.ts",
     "b1:start": "tsx b1/server.ts",
     "b1:check": "tsx b1/check.ts",
+    "b1:tasks": "tsx b1/tasks.ts",
     "a:run": "tsx a/run.ts",
     "a:check": "tsx a/check.ts",
     "typecheck": "tsc --noEmit"

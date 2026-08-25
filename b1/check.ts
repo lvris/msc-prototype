@@ -1,153 +1,274 @@
 /**
- * check.ts — minimal HTTP self-check.
+ * check.ts — the site invariant checker.
  *
- * Boots the server, drives the three demo flows over `fetch`, and prints the
- * controls each returned representation exposes. It ASSERTS the two thesis
- * properties:
- *   - a `confirmed` representation exposes no slot-change / edit control (locked);
- *   - a `conflict` representation exposes no confirm control (refusal).
+ * These are not ordinary unit tests. Each invariant is the executable form of a
+ * claim the thesis makes about hypermedia-constrained interaction, asserted over
+ * EVERY reachable state rather than over a hand-picked scenario:
  *
- * `extract()` discovers controls straight from the returned HTML by their NATIVE
- * semantics — native <a>/<form> and htmx hx-* elements — with NO reliance on any
- * custom annotation. It keys each control by `{method, url}`, exactly the way the
- * future agent A perceives a site. B1 must stand alone, so this does not import
- * from `a/`; it just mirrors the same idea.
+ *   I1  rendered == valid    the controls parsed out of the representation are
+ *                            exactly `validAffordances(s)` — both inclusions.
+ *   I2  guard refuses        every catalogued action outside the valid set is
+ *                            refused (409) and leaves the state untouched.
+ *   I3  offered == doable    every rendered control, replayed as declared,
+ *                            succeeds and (if mutating) moves the state.
+ *   I4  reachability         every status is reachable from a fresh session,
+ *                            and the checker prints the path.
+ *   I5  fields are complete  the declared fields suffice to build a successful
+ *                            request; no hidden required parameter exists.
+ *   I6  the gates bite       for G1..G5, the two sides of the gate really do
+ *                            expose different action sets.
+ *
+ * The state space comes from `explore.ts`, which walks the site through controls
+ * it discovered in HTML — so the walk is itself evidence that the site is
+ * navigable by perception alone.
  */
 
-import { parseHTML } from "linkedom";
+import { CATALOGUE, SAMPLE_VALUES } from "./catalogue.ts";
+import {
+  affordanceKey,
+  controlKey,
+  exec,
+  explore,
+  extract,
+  fullKey,
+  getSession,
+  pageHtml,
+  setSession,
+  startSite,
+} from "./explore.ts";
+import {
+  ALL_ACTION_IDS,
+  CANCEL_WINDOW_HOURS,
+  DATES,
+  freshSession,
+  insideCancelWindow,
+  LARGE_PARTY,
+  MENU,
+  type Session,
+  type Status,
+  validAffordances,
+} from "./model.ts";
 
-export {}; // make this a module so top-level await is allowed
-
-process.env.PORT = process.env.PORT ?? "3999";
-const BASE = `http://localhost:${process.env.PORT}`;
-
-await import("./server.ts"); // starts app.listen on PORT
-
-interface Control {
-  method: string;
-  url: string;
-  label: string;
-}
-
-/** Pull every control out of an HTML string by native/htmx semantics. */
-function extract(html: string): Control[] {
-  const { document } = parseHTML(html);
-  const out: Control[] = [];
-
-  // htmx controls: any element carrying an hx-<verb> attribute.
-  for (const el of document.querySelectorAll("[hx-get],[hx-post],[hx-put],[hx-delete]")) {
-    for (const verb of ["get", "post", "put", "delete"]) {
-      const url = el.getAttribute(`hx-${verb}`);
-      if (url) {
-        out.push({ method: verb.toUpperCase(), url, label: (el.textContent ?? "").trim() });
-        break;
-      }
-    }
-  }
-
-  // native forms — only those with a real submit control (an action-less form
-  // whose only button is an htmx type=button is the htmx parser's job, skipped).
-  for (const form of document.querySelectorAll("form")) {
-    const submit = form.querySelector('button[type="submit"], input[type="submit"]');
-    if (!submit) continue;
-    const method = (form.getAttribute("method") ?? "GET").toUpperCase();
-    const url = form.getAttribute("action") ?? "";
-    out.push({ method, url, label: (submit.textContent ?? "").trim() });
-  }
-
-  // native links.
-  for (const a of document.querySelectorAll("a[href]")) {
-    out.push({ method: "GET", url: a.getAttribute("href") ?? "", label: (a.textContent ?? "").trim() });
-  }
-
-  return out;
-}
-
-async function waitForServer(): Promise<void> {
-  for (let i = 0; i < 50; i++) {
-    try {
-      const r = await fetch(`${BASE}/`);
-      if (r.ok) return;
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error("server did not start");
-}
-
-const form = (obj: Record<string, string>) => new URLSearchParams(obj).toString();
-
-async function get(path: string, htmx = false): Promise<string> {
-  const r = await fetch(`${BASE}${path}`, { headers: htmx ? { "HX-Request": "true" } : {} });
-  return r.text();
-}
-async function post(path: string, body: Record<string, string>, htmx = false): Promise<Response> {
-  return fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      ...(htmx ? { "HX-Request": "true" } : {}),
-    },
-    body: form(body),
-  });
-}
+export {}; // module, so top-level await is allowed
 
 const failures: string[] = [];
+let passed = 0;
+
 function assert(cond: boolean, msg: string): void {
-  if (cond) {
-    console.log(`  ✓ ${msg}`);
-  } else {
+  if (cond) passed++;
+  else {
     console.log(`  ✗ ${msg}`);
     failures.push(msg);
   }
 }
 
-function show(label: string, html: string): Control[] {
-  const controls = extract(html);
-  const ids = controls.map((c) => `${c.method} ${c.url} (${c.label})`);
-  console.log(`  ${label}: ${ids.length ? ids.join("  ") : "(no controls)"}`);
-  return controls;
+const section = (t: string): void => console.log(`\n# ${t}`);
+
+await startSite();
+
+// ── the walk ─────────────────────────────────────────────────────────────────
+
+section("Exploring the state space through the site's own controls");
+
+const graph = await explore();
+assert(graph.complete, "the walk closed on its own rather than hitting the state cap");
+console.log(`  visited ${graph.nodes.size} states over ${graph.edges.length} transitions`);
+const perStatus = new Map<string, number>();
+for (const n of graph.nodes.values()) {
+  perStatus.set(n.session.status, (perStatus.get(n.session.status) ?? 0) + 1);
 }
-const has = (cs: Control[], method: string, url: string) =>
-  cs.some((c) => c.method === method && c.url === url);
+for (const [status, count] of [...perStatus].sort()) console.log(`    ${status}: ${count}`);
+if (process.env.VERBOSE) {
+  for (const n of graph.nodes.values()) {
+    console.log(`    ${n.key}\n      ← ${n.path.length ? n.path.join(" → ") : "(fresh session)"}`);
+  }
+}
 
-await waitForServer();
+// ── I1: rendered == valid, in every state ────────────────────────────────────
 
-// ── Scenario 1: happy path ────────────────────────────────────────────────
-console.log("\n# Scenario 1 — happy path");
-show("browsing", await get("/reset"));
-show("availability (htmx fragment)", await get("/availability?date=2026-07-10&partySize=2", true));
-await post("/hold", { slot: "19:00" }); // native POST → PRG
-show("holding", await get("/"));
-await post("/details", { name: "Ada Lovelace", phone: "+358 40 123 4567" });
-show("details_entered", await get("/"));
-await post("/confirm", {});
-const confirmed = show("confirmed", await get("/"));
-assert(has(confirmed, "DELETE", "/booking"), "confirmed exposes cancel (DELETE /booking)");
-assert(!has(confirmed, "POST", "/hold"), "confirmed is LOCKED: no slot-change control (POST /hold)");
-assert(!has(confirmed, "POST", "/edit-details"), "confirmed is LOCKED: no edit control (POST /edit-details)");
+section("I1 — the representation offers exactly the valid action set");
 
-// ── Scenario 2: locked — a crafted request is refused, not just hidden ──────
-console.log("\n# Scenario 2 — locked action refused by the guard");
-const refused = await post("/hold", { slot: "18:00" }); // try to change a confirmed booking
-assert(refused.status === 409, `POST /hold on a confirmed booking is refused (got ${refused.status})`);
+for (const node of graph.nodes.values()) {
+  await setSession(node.session);
+  const modelKeys = new Set(validAffordances(node.session).map(affordanceKey));
+  const renderedKeys = new Set(extract(await pageHtml()).map(controlKey));
+  for (const k of modelKeys) assert(renderedKeys.has(k), `I1 [${node.key}] valid is rendered: ${k}`);
+  for (const k of renderedKeys) assert(modelKeys.has(k), `I1 [${node.key}] rendered is valid: ${k}`);
+}
+console.log(`  both inclusions hold in all ${graph.nodes.size} states`);
 
-// ── Scenario 3: conflict — no "confirm anyway", resolve via another slot ────
-console.log("\n# Scenario 3 — conflict refusal + resolution");
-await get("/reset");
-await get("/availability?date=2026-07-10&partySize=2", true);
-await post("/hold", { slot: "20:00" }); // the contended slot
-await post("/details", { name: "Ada Lovelace", phone: "+358 40 123 4567" });
-await post("/confirm", {}); // conflicts
-const conflict = show("conflict", await get("/"));
-assert(!has(conflict, "POST", "/confirm"), "conflict has NO confirm control ('confirm anyway' is unrepresentable)");
-assert(has(conflict, "POST", "/hold"), "conflict offers pick-another-slot controls (POST /hold)");
-await post("/hold", { slot: "19:00" }); // pick a free slot → back to review
-await post("/confirm", {});
-const resolved = show("confirmed (resolved)", await get("/"));
-assert(has(resolved, "DELETE", "/booking"), "conflict resolved into a confirmed booking");
+// ── I3 + I5: from the edges the walk actually executed ───────────────────────
 
-// ── Summary ────────────────────────────────────────────────────────────────
-console.log(`\n${failures.length === 0 ? "ALL CHECKS PASSED" : `${failures.length} CHECK(S) FAILED`}`);
+section("I3 + I5 — every offered control is executable, with the fields it declares");
+
+for (const e of graph.edges) {
+  const what = `${e.control.method} ${e.control.url} (${e.control.label})`;
+  // I5: a 400 means a required parameter was never mentioned in the HTML.
+  assert(e.status !== 400, `I5 [${e.from}] ${what} needs no undeclared field`);
+  // I3: an offered control is executable at the moment it is offered.
+  assert(e.status < 400, `I3 [${e.from}] ${what} executes (got ${e.status})`);
+  if (e.status < 400 && e.control.method !== "GET") {
+    assert(e.moved, `I3 [${e.from}] ${what} moves the state`);
+  }
+}
+console.log(`  ${graph.edges.length} offered controls executed, none refused`);
+
+// ── I2: everything outside the valid set is refused and changes nothing ──────
+
+section("I2 — catalogued actions outside the valid set are refused");
+
+let refusals = 0;
+for (const node of graph.nodes.values()) {
+  const validIds = new Set(validAffordances(node.session).map((a) => a.id));
+  for (const entry of CATALOGUE) {
+    if (validIds.has(entry.id)) continue;
+    await setSession(node.session);
+    const values: Record<string, string> = {};
+    for (const p of entry.params) values[p] = SAMPLE_VALUES[p] ?? "x";
+    const res = await exec(entry.method, entry.url, values);
+    assert(res.status === 409, `I2 [${node.key}] ${entry.id} refused (got ${res.status})`);
+    const after = await getSession();
+    assert(
+      fullKey(after) === fullKey(node.session),
+      `I2 [${node.key}] ${entry.id} left the state untouched`,
+    );
+    refusals++;
+  }
+}
+console.log(`  ${refusals} out-of-state requests, all refused with 409 and no state change`);
+
+// ── I4: reachability of every declared status and every action ───────────────
+
+section("I4 — every status is reachable, with a witness path");
+
+const ALL_STATUSES: Status[] = [
+  "browsing",
+  "holding",
+  "details_entered",
+  "deposit_pending",
+  "confirmed",
+  "conflict",
+  "waitlisted",
+  "cancelled",
+  "cancellation_requested",
+];
+
+for (const status of ALL_STATUSES) {
+  const hit = [...graph.nodes.values()].find((n) => n.session.status === status);
+  assert(hit !== undefined, `I4 ${status} is reachable from a fresh session`);
+  if (hit) console.log(`  ${status}: ${hit.path.length ? hit.path.join(" → ") : "(fresh session)"}`);
+}
+
+section("I4b — every catalogued action is valid in at least one reachable state");
+const everValid = new Set<string>();
+for (const n of graph.nodes.values()) for (const a of validAffordances(n.session)) everValid.add(a.id);
+for (const id of ALL_ACTION_IDS) assert(everValid.has(id), `I4b ${id} is valid in some reachable state`);
+
+// ── I6: the gates bite ───────────────────────────────────────────────────────
+
+section("I6 — the two sides of each gate expose different action sets");
+
+const idsFor = (s: Session): Set<string> => new Set(validAffordances(s).map((a) => a.id));
+
+function gate(
+  name: string,
+  left: Session,
+  right: Session,
+  expect: { onlyLeft: string[]; onlyRight: string[] },
+): void {
+  const l = idsFor(left);
+  const r = idsFor(right);
+  for (const id of expect.onlyLeft) assert(l.has(id) && !r.has(id), `I6 ${name}: ${id} on one side only`);
+  for (const id of expect.onlyRight) assert(r.has(id) && !l.has(id), `I6 ${name}: ${id} on the other side only`);
+  console.log(`  ${name}: {${[...l].join(", ")}}  vs  {${[...r].join(", ")}}`);
+}
+
+const draft = (partySize: number): Session => ({
+  ...freshSession(),
+  status: partySize > LARGE_PARTY ? "deposit_pending" : "details_entered",
+  date: "next-week",
+  partySize,
+  slot: "19:00",
+  guest: { name: "Ada", phone: "+358" },
+});
+
+const booked = (date: string): Session => ({
+  ...freshSession(),
+  status: "confirmed",
+  date,
+  partySize: 2,
+  slot: "19:00",
+  guest: { name: "Ada", phone: "+358" },
+  bookingId: "R00001",
+});
+
+// G1 — the deposit threshold
+gate("G1 deposit threshold", draft(LARGE_PARTY), draft(LARGE_PARTY + 1), {
+  onlyLeft: ["confirm_booking", "open_preorder"],
+  onlyRight: ["pay_deposit"],
+});
+
+// G2 — the cancellation window
+const far = DATES.find((d) => d.hoursUntilSeating > CANCEL_WINDOW_HOURS)!;
+const near = DATES.find((d) => d.hoursUntilSeating <= CANCEL_WINDOW_HOURS)!;
+gate("G2 cancellation window", booked(far.id), booked(near.id), {
+  onlyLeft: ["cancel_booking"],
+  onlyRight: ["request_cancellation"],
+});
+assert(!insideCancelWindow(booked(far.id)), `I6 G2: ${far.id} is outside the window`);
+assert(insideCancelWindow(booked(near.id)), `I6 G2: ${near.id} is inside the window`);
+
+// G3 — the pre-order window
+const openPre: Session = { ...draft(2), preorder: { status: "open", dishes: [MENU[0]] } };
+const submittedPre: Session = { ...draft(2), preorder: { status: "submitted", dishes: [MENU[0]] } };
+gate("G3 pre-order open vs submitted", openPre, submittedPre, {
+  onlyLeft: ["add_dish", "remove_dish", "submit_preorder"],
+  onlyRight: [],
+});
+assert(!idsFor(booked(far.id)).has("open_preorder"), "I6 G3: a confirmed booking cannot open a pre-order");
+assert(
+  !idsFor({ ...draft(2), status: "holding" }).has("open_preorder"),
+  "I6 G3: a merely held table cannot open a pre-order",
+);
+
+// G4 — the waitlist is non-monotonic
+const fullDate = DATES.find((d) => d.taken.length === 5)!;
+const browsingFull: Session = { ...freshSession(), date: fullDate.id, partySize: 2 };
+const browsingFree: Session = { ...freshSession(), date: far.id, partySize: 2 };
+gate("G4 full vs free date", browsingFree, browsingFull, {
+  onlyLeft: ["hold_slot"],
+  onlyRight: ["join_waitlist"],
+});
+const queued: Session = { ...browsingFull, status: "waitlisted", waitlistPosition: 3 };
+const queuedPolled: Session = { ...queued, waitlistPolled: true, waitlistPosition: 1 };
+gate("G4 waitlist before vs after a release", queued, queuedPolled, {
+  onlyLeft: [],
+  onlyRight: ["hold_slot"],
+});
+
+// G5 — "cancel" is not one action
+gate("G5 discard vs cancel", draft(2), booked(far.id), {
+  onlyLeft: ["discard_draft"],
+  onlyRight: ["cancel_booking"],
+});
+gate("G5 discard vs request cancellation", draft(2), booked(near.id), {
+  onlyLeft: ["discard_draft"],
+  onlyRight: ["request_cancellation"],
+});
+
+// ── how much does a static catalogue over-offer? ─────────────────────────────
+
+section("Catalogue-to-valid ratio");
+const sizes = [...graph.nodes.values()].map((n) => validAffordances(n.session).length);
+const mean = sizes.reduce((a, b) => a + b, 0) / sizes.length;
+console.log(
+  `  ${CATALOGUE.length} catalogued actions; valid per state: min ${Math.min(...sizes)}, ` +
+    `max ${Math.max(...sizes)}, mean ${mean.toFixed(2)} → ratio ${(CATALOGUE.length / mean).toFixed(1)}:1`,
+);
+
+// ── summary ──────────────────────────────────────────────────────────────────
+
+console.log(
+  `\n${failures.length === 0 ? `ALL ${passed} CHECKS PASSED` : `${failures.length} CHECK(S) FAILED (${passed} passed)`}`,
+);
 process.exit(failures.length === 0 ? 0 : 1);

@@ -13,7 +13,10 @@
 
 import {
   type Affordance,
+  depositAmount,
   type Field,
+  isFullyBooked,
+  LARGE_PARTY,
   type Session,
   slotOptions,
   validAffordances,
@@ -25,6 +28,18 @@ const esc = (s: string): string =>
 function renderField(f: Field): string {
   if (f.type === "hidden") {
     return `<input type="hidden" name="${f.name}" value="${esc(f.value ?? "")}">`;
+  }
+  if (f.type === "select") {
+    const opts = (f.options ?? [])
+      .map(
+        (o) =>
+          `<option value="${esc(o.value)}"${o.value === f.value ? " selected" : ""}>${esc(o.label)}</option>`,
+      )
+      .join("");
+    return `<label>${esc(f.label ?? f.name)}<select name="${f.name}"${f.required ? " required" : ""}>${opts}</select></label>`;
+  }
+  if (f.type === "textarea") {
+    return `<label>${esc(f.label ?? f.name)}<textarea name="${f.name}"${f.required ? " required" : ""}>${esc(f.value ?? "")}</textarea></label>`;
   }
   const attrs = [
     `name="${f.name}"`,
@@ -84,26 +99,32 @@ ${fields}
   return `<button type="button" ${hx}>${esc(a.label)}</button>`;
 }
 
+/**
+ * Affordances that belong in the #slots fragment rather than the main control
+ * block. Splitting by id (not by re-deriving availability) is what keeps the
+ * rendered set exactly equal to `validAffordances()` — every affordance is
+ * rendered exactly once, here or there.
+ */
+const SLOT_PANEL_IDS = new Set(["hold_slot", "join_waitlist"]);
+
 /** The dynamic slot list (its own representation; swapped into #slots by htmx). */
 export function slotsFragment(session: Session): string {
-  const opts = slotOptions(session);
-  if (session.status === "browsing" && !session.date) {
+  if (!session.date) {
     return `<p><small>Pick a date and check availability to see tables.</small></p>`;
   }
-  const rows = opts
+  const controls = validAffordances(session).filter((a) => SLOT_PANEL_IDS.has(a.id));
+  const rows = slotOptions(session)
     .map((o) => {
-      if (o.taken) {
-        return `<li>${o.slot} — <ins>taken</ins></li>`;
-      }
-      return `<li>
-<form method="post" action="/hold" style="display:inline">
-<input type="hidden" name="slot" value="${o.slot}">
-<button type="submit">Hold ${o.slot}</button>
-</form>
-</li>`;
+      const hold = controls.find((a) => a.fields?.some((f) => f.name === "slot" && f.value === o.slot));
+      if (!hold) return `<li>${o.slot} — <ins>taken</ins></li>`;
+      return `<li>${renderAffordance(hold)}</li>`;
     })
     .join("\n");
-  return `<ul>\n${rows}\n</ul>`;
+  const waitlist = controls.filter((a) => a.id === "join_waitlist").map(renderAffordance).join("\n");
+  const note = isFullyBooked(session)
+    ? `<p><mark>No tables left on this date.</mark></p>`
+    : "";
+  return `<ul>\n${rows}\n</ul>\n${note}${waitlist}`;
 }
 
 function summary(session: Session): string {
@@ -115,9 +136,23 @@ function summary(session: Session): string {
   return bits.length ? `<p>${bits.join(" ")}</p>` : "";
 }
 
+/** What has been pre-ordered so far (G3); read-only, the controls come from the model. */
+function preorderSummary(session: Session): string {
+  const { status, dishes } = session.preorder;
+  if (status === "none") return "";
+  const items = dishes.length
+    ? `<ul>${dishes.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>`
+    : `<p><small>Nothing pre-ordered yet.</small></p>`;
+  const head = status === "submitted" ? "Pre-order (submitted)" : "Pre-order";
+  return `<h3>${head}</h3>${items}`;
+}
+
 /** The inner HTML of the #booking panel for the current state. */
 export function panel(session: Session): string {
-  const controls = validAffordances(session).map(renderAffordance).join("\n");
+  const controls = validAffordances(session)
+    .filter((a) => !SLOT_PANEL_IDS.has(a.id))
+    .map(renderAffordance)
+    .join("\n");
 
   switch (session.status) {
     case "browsing":
@@ -137,6 +172,16 @@ ${controls}`.trim();
       return `
 <h2>Review &amp; confirm</h2>
 ${summary(session)}
+${preorderSummary(session)}
+${controls}`.trim();
+
+    case "deposit_pending":
+      return `
+<h2>Deposit required</h2>
+${summary(session)}
+<p><mark>Parties of more than ${LARGE_PARTY} require a €${depositAmount(session)} deposit
+before the booking can be confirmed.</mark></p>
+${preorderSummary(session)}
 ${controls}`.trim();
 
     case "confirmed":
@@ -144,6 +189,7 @@ ${controls}`.trim();
 <h2>Booked! 🎉</h2>
 ${summary(session)}
 <p>Confirmation <strong>#${esc(session.bookingId ?? "")}</strong></p>
+${preorderSummary(session)}
 ${controls}`.trim();
 
     case "conflict":
@@ -151,6 +197,23 @@ ${controls}`.trim();
 <h2>That slot was just taken</h2>
 ${summary(session)}
 <p><mark>${esc(session.slot ?? "")} is no longer available.</mark> Pick another slot to continue.</p>
+${controls}
+<div id="slots">${slotsFragment(session)}</div>`.trim();
+
+    case "waitlisted":
+      return `
+<h2>On the waitlist</h2>
+${summary(session)}
+<p>You are number <strong>${session.waitlistPosition ?? "?"}</strong> in the queue.</p>
+${controls}
+<div id="slots">${slotsFragment(session)}</div>`.trim();
+
+    case "cancellation_requested":
+      return `
+<h2>Cancellation requested</h2>
+${summary(session)}
+<p>The restaurant will review your request. Reason given:
+<em>${esc(session.cancellationReason ?? "")}</em></p>
 ${controls}`.trim();
 
     case "cancelled":
@@ -199,6 +262,30 @@ export function confirmationPage(session: Session): string {
 <h2>Reservation confirmed</h2>
 ${summary(session)}
 <p>Confirmation <strong>#${esc(session.bookingId ?? "")}</strong></p>
+${preorderSummary(session)}
+<a href="/">Back</a>
+</article>
+</main>
+</body>
+</html>`;
+}
+
+/** Read-only cancellation-request representation (GET /cancellation). */
+export function cancellationPage(session: Session): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cancellation request</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+<body>
+<main class="container">
+<article>
+<h2>Cancellation requested</h2>
+${summary(session)}
+<p>Booking <strong>#${esc(session.bookingId ?? "")}</strong> is awaiting the restaurant's decision.</p>
+<p>Reason: <em>${esc(session.cancellationReason ?? "")}</em></p>
 <a href="/">Back</a>
 </article>
 </main>

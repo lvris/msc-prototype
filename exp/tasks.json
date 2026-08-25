@@ -1,0 +1,697 @@
+{
+  "generatedFrom": {
+    "states": 997,
+    "transitions": 3950,
+    "candidates": {
+      "T1": 2541,
+      "T2": 7676,
+      "T3": 8726
+    },
+    "abandoning": [
+      "start_over",
+      "discard_draft",
+      "release_hold",
+      "change_slot",
+      "leave_waitlist"
+    ]
+  },
+  "tasks": [
+    {
+      "goalText": "Go ahead and confirm the booking.",
+      "intent": "finalize",
+      "satisfiedBy": [
+        "confirm_booking",
+        "pay_deposit"
+      ],
+      "validHere": [
+        "pay_deposit"
+      ],
+      "startState": {
+        "status": "deposit_pending",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        }
+      },
+      "startKey": "deposit_pending|date=next-week|large|slot=contended|guest|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-01"
+    },
+    {
+      "goalText": "We cannot make it — cancel the booking.",
+      "intent": "cancel_reservation",
+      "satisfiedBy": [
+        "cancel_booking",
+        "request_cancellation"
+      ],
+      "validHere": [
+        "request_cancellation"
+      ],
+      "startState": {
+        "status": "confirmed",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "tomorrow",
+        "partySize": 8,
+        "slot": "18:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R62584"
+      },
+      "startKey": "confirmed|date=tomorrow|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-02"
+    },
+    {
+      "goalText": "Find out which tables are free.",
+      "intent": "find_availability",
+      "satisfiedBy": [
+        "check_availability"
+      ],
+      "validHere": [
+        "check_availability"
+      ],
+      "startState": {
+        "status": "browsing",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        }
+      },
+      "startKey": "browsing|date=-|small|slot=-|-|pre=none/none|-|conflict=-|-",
+      "startPath": [],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-03"
+    },
+    {
+      "goalText": "Actually, we would like a different time.",
+      "intent": "change_time",
+      "satisfiedBy": [
+        "change_slot"
+      ],
+      "validHere": [
+        "change_slot"
+      ],
+      "startState": {
+        "status": "holding",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00"
+      },
+      "startKey": "holding|date=next-week|large|slot=contended|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-04"
+    },
+    {
+      "goalText": "Take us off the queue, we have made other plans.",
+      "intent": "leave_queue",
+      "satisfiedBy": [
+        "leave_waitlist"
+      ],
+      "validHere": [
+        "leave_waitlist"
+      ],
+      "startState": {
+        "status": "waitlisted",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "saturday",
+        "partySize": 8,
+        "waitlistPosition": 3
+      },
+      "startKey": "waitlisted|date=saturday|large|slot=-|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /waitlist"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-05"
+    },
+    {
+      "goalText": "Go ahead and confirm the booking.",
+      "intent": "finalize",
+      "satisfiedBy": [
+        "confirm_booking",
+        "pay_deposit"
+      ],
+      "validHere": [
+        "confirm_booking"
+      ],
+      "startState": {
+        "status": "details_entered",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 2,
+        "slot": "20:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        }
+      },
+      "startKey": "details_entered|date=next-week|small|slot=contended|guest|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-06"
+    },
+    {
+      "goalText": "Start again from scratch.",
+      "intent": "restart",
+      "satisfiedBy": [
+        "start_over"
+      ],
+      "validHere": [
+        "start_over"
+      ],
+      "startState": {
+        "status": "cancellation_requested",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "tomorrow",
+        "partySize": 8,
+        "slot": "18:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R62584",
+        "cancellationReason": "Travel plans changed."
+      },
+      "startKey": "cancellation_requested|date=tomorrow|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit",
+        "POST /cancellation-request"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-07"
+    },
+    {
+      "goalText": "Get us in the queue for a table on that day.",
+      "intent": "join_queue",
+      "satisfiedBy": [
+        "join_waitlist"
+      ],
+      "validHere": [
+        "join_waitlist"
+      ],
+      "startState": {
+        "status": "browsing",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "saturday",
+        "partySize": 8
+      },
+      "startKey": "browsing|date=saturday|large|slot=-|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-08"
+    },
+    {
+      "goalText": "Put the booking under my name and phone number.",
+      "intent": "give_details",
+      "satisfiedBy": [
+        "enter_details"
+      ],
+      "validHere": [
+        "enter_details"
+      ],
+      "startState": {
+        "status": "holding",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00"
+      },
+      "startKey": "holding|date=next-week|large|slot=contended|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-09"
+    },
+    {
+      "goalText": "Tell me how far up the queue we are.",
+      "intent": "queue_position",
+      "satisfiedBy": [
+        "check_position"
+      ],
+      "validHere": [
+        "check_position"
+      ],
+      "startState": {
+        "status": "waitlisted",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "saturday",
+        "partySize": 8,
+        "waitlistPosition": 3
+      },
+      "startKey": "waitlisted|date=saturday|large|slot=-|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /waitlist"
+      ],
+      "class": "T1",
+      "expectedUnderH": "a control satisfying the goal is rendered; the agent executes it",
+      "id": "T1-10"
+    },
+    {
+      "goalText": "Get us in the queue for a table on that day.",
+      "intent": "join_queue",
+      "satisfiedBy": [
+        "join_waitlist"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "browsing",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        }
+      },
+      "startKey": "browsing|date=-|small|slot=-|-|pre=none/none|-|conflict=-|-",
+      "startPath": [],
+      "routeToGoal": [
+        "GET /availability"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-01"
+    },
+    {
+      "goalText": "Forget this half-finished booking, we never completed it.",
+      "intent": "abandon_draft",
+      "satisfiedBy": [
+        "discard_draft"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "holding",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00"
+      },
+      "startKey": "holding|date=next-week|large|slot=contended|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold"
+      ],
+      "routeToGoal": [
+        "POST /details"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-02"
+    },
+    {
+      "goalText": "Add the tiramisù to what we are ordering ahead.",
+      "intent": "add_dish",
+      "satisfiedBy": [
+        "add_dish"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "details_entered",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 2,
+        "slot": "20:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        }
+      },
+      "startKey": "details_entered|date=next-week|small|slot=contended|guest|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details"
+      ],
+      "routeToGoal": [
+        "POST /preorder"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-03"
+    },
+    {
+      "goalText": "We cannot make it — cancel the booking.",
+      "intent": "cancel_reservation",
+      "satisfiedBy": [
+        "cancel_booking",
+        "request_cancellation"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "deposit_pending",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "17:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        }
+      },
+      "startKey": "deposit_pending|date=next-week|large|slot=held|guest|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details"
+      ],
+      "routeToGoal": [
+        "POST /deposit"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-04"
+    },
+    {
+      "goalText": "Start again from scratch.",
+      "intent": "restart",
+      "satisfiedBy": [
+        "start_over"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "confirmed",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "17:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R35150"
+      },
+      "startKey": "confirmed|date=next-week|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit"
+      ],
+      "routeToGoal": [
+        "DELETE /booking"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-05"
+    },
+    {
+      "goalText": "Put a table on hold for us.",
+      "intent": "secure_table",
+      "satisfiedBy": [
+        "hold_slot"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "browsing",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        }
+      },
+      "startKey": "browsing|date=-|small|slot=-|-|pre=none/none|-|conflict=-|-",
+      "startPath": [],
+      "routeToGoal": [
+        "GET /availability"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-06"
+    },
+    {
+      "goalText": "Add the tiramisù to what we are ordering ahead.",
+      "intent": "add_dish",
+      "satisfiedBy": [
+        "add_dish"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "holding",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00"
+      },
+      "startKey": "holding|date=next-week|large|slot=contended|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold"
+      ],
+      "class": "T3",
+      "expectedUnderH": "no such control is rendered in any state reachable without giving up the booking; the agent must report the goal as unattainable",
+      "id": "T3-01"
+    },
+    {
+      "goalText": "Forget this half-finished booking, we never completed it.",
+      "intent": "abandon_draft",
+      "satisfiedBy": [
+        "discard_draft"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "confirmed",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "17:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R35150"
+      },
+      "startKey": "confirmed|date=next-week|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit"
+      ],
+      "class": "T3",
+      "expectedUnderH": "no such control is rendered in any state reachable without giving up the booking; the agent must report the goal as unattainable",
+      "id": "T3-02"
+    },
+    {
+      "goalText": "We cannot make it — cancel the booking.",
+      "intent": "cancel_reservation",
+      "satisfiedBy": [
+        "cancel_booking",
+        "request_cancellation"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "cancellation_requested",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "tomorrow",
+        "partySize": 8,
+        "slot": "18:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R62584",
+        "cancellationReason": "Travel plans changed."
+      },
+      "startKey": "cancellation_requested|date=tomorrow|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit",
+        "POST /cancellation-request"
+      ],
+      "class": "T3",
+      "expectedUnderH": "no such control is rendered in any state reachable without giving up the booking; the agent must report the goal as unattainable",
+      "id": "T3-03"
+    },
+    {
+      "goalText": "Find out which tables are free.",
+      "intent": "find_availability",
+      "satisfiedBy": [
+        "check_availability"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "holding",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00"
+      },
+      "startKey": "holding|date=next-week|large|slot=contended|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold"
+      ],
+      "class": "T3",
+      "expectedUnderH": "no such control is rendered in any state reachable without giving up the booking; the agent must report the goal as unattainable",
+      "id": "T3-04"
+    },
+    {
+      "goalText": "Actually, we would like a different time.",
+      "intent": "change_time",
+      "satisfiedBy": [
+        "change_slot"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "confirmed",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "17:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R35150"
+      },
+      "startKey": "confirmed|date=next-week|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit"
+      ],
+      "class": "T3",
+      "expectedUnderH": "no such control is rendered in any state reachable without giving up the booking; the agent must report the goal as unattainable",
+      "id": "T3-05"
+    },
+    {
+      "goalText": "Show me the confirmation for the booking.",
+      "intent": "see_confirmation",
+      "satisfiedBy": [
+        "view_confirmation"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "cancellation_requested",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "tomorrow",
+        "partySize": 8,
+        "slot": "18:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        },
+        "depositPaid": true,
+        "bookingId": "R62584",
+        "cancellationReason": "Travel plans changed."
+      },
+      "startKey": "cancellation_requested|date=tomorrow|large|slot=held|guest|pre=none/none|-|conflict=-|paid",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details",
+        "POST /deposit",
+        "POST /cancellation-request"
+      ],
+      "class": "T3",
+      "expectedUnderH": "no such control is rendered in any state reachable without giving up the booking; the agent must report the goal as unattainable",
+      "id": "T3-06"
+    }
+  ]
+}
