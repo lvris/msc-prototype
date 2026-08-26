@@ -11,6 +11,8 @@
     "b1:tasks": "tsx b1/tasks.ts",
     "a:run": "tsx a/run.ts",
     "a:check": "tsx a/check.ts",
+    "exp:run": "tsx exp/run.ts",
+    "exp:report": "tsx exp/report.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

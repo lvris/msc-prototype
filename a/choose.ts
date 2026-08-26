@@ -47,11 +47,40 @@ export function manualChooser(): Chooser {
   };
 }
 
+// ── random ──────────────────────────────────────────────────────────────────
+// A chooser with no goal comprehension at all: it picks uniformly from whatever
+// it is offered. It exists as an experimental floor — the score a backend gets
+// from the shape of the offered set alone, before any reasoning is added.
+export function randomChooser(seed = 1): Chooser {
+  let s = seed >>> 0;
+  const next = (): number => {
+    // xorshift32 — reproducible across runs without a dependency
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    return (s >>> 0) / 0x1_0000_0000;
+  };
+  return {
+    name: "random",
+    choose(ctx) {
+      return Promise.resolve({ index: Math.floor(next() * ctx.affordances.length), values: {} });
+    },
+  };
+}
+
 // ── openai-compatible (qwen via Ollama / LM Studio, etc.) ─────────────────────
-interface ModelConfig {
+export interface ModelConfig {
   baseUrl: string;
   model: string;
   key: string;
+  /**
+   * 0 means greedy decoding: the same prompt yields the same token every time.
+   * Since the prompt here is a pure function of the state, a whole run is then
+   * deterministic — repeating it produces a byte-identical trajectory rather than
+   * a second sample. Raise it only when the point is to characterise sampling
+   * variance.
+   */
+  temperature: number;
 }
 
 export function modelConfigFromEnv(): ModelConfig {
@@ -59,6 +88,7 @@ export function modelConfigFromEnv(): ModelConfig {
     baseUrl: process.env.A_MODEL_BASEURL ?? "http://localhost:11434/v1",
     model: process.env.A_MODEL ?? "qwen2.5:7b",
     key: process.env.A_MODEL_KEY ?? "ollama",
+    temperature: Number(process.env.A_MODEL_TEMP ?? "0"),
   };
 }
 
@@ -102,7 +132,7 @@ async function callModel(cfg: ModelConfig, messages: ChatMessage[]): Promise<str
   const res = await fetch(`${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
-    body: JSON.stringify({ model: cfg.model, temperature: 0, messages }),
+    body: JSON.stringify({ model: cfg.model, temperature: cfg.temperature, messages }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -196,6 +226,8 @@ export function makeChooser(name: string): Chooser {
   switch (name) {
     case "manual":
       return manualChooser();
+    case "random":
+      return randomChooser();
     case "claude":
       return claudeChooser();
     case "openai":
