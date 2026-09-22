@@ -1,0 +1,84 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>browsing — one representation, two consumers</title><style>
+
+:root { color-scheme: light; }
+body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 1.5rem; background: #fafafa; color: #222; }
+h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
+.note { margin: 0 0 1.25rem; color: #555; max-width: 46rem; }
+.controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-start; }
+.control { border: 1px solid #d4d4d4; border-radius: 6px; background: #fff; padding: .7rem .8rem; min-width: 15rem; max-width: 21rem; }
+.control header { font-size: .75rem; color: #666; margin-bottom: .5rem; display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.control.dead { opacity: .55; border-style: dashed; background: #f6f6f6; }
+.verb { font-weight: 700; letter-spacing: .04em; }
+code { font: .75rem ui-monospace, monospace; background: #f0f0f0; padding: .05rem .25rem; border-radius: 3px; }
+.field { margin: .45rem 0; display: flex; flex-direction: column; gap: .2rem; }
+.field label { font-size: .8rem; font-weight: 600; }
+input, select, textarea { font: inherit; padding: .3rem .4rem; border: 1px solid #c4c4c4; border-radius: 4px; width: 100%; box-sizing: border-box; }
+textarea { min-height: 3.5rem; }
+button { margin-top: .55rem; font: inherit; padding: .35rem .8rem; border: 1px solid #444; border-radius: 4px; background: #333; color: #fff; cursor: pointer; }
+.control.dead button { background: #999; border-color: #999; cursor: not-allowed; }
+.fixed { margin: .3rem 0; font-size: .75rem; color: #555; display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; }
+.tag { font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; padding: .05rem .3rem; border-radius: 3px; align-self: flex-start; }
+.tag.ask  { background: #fde8c8; color: #7a4a06; }
+.tag.pre  { background: #e2ecfa; color: #204070; }
+.tag.opt  { background: #eee; color: #666; }
+.tag.fix  { background: #e4f2e4; color: #245024; }
+.tag.warn { background: #fbe0e0; color: #7a1414; }
+.tag.bad  { background: #7a1414; color: #fff; }
+.empty { color: #777; font-style: italic; }
+
+body { padding: 0; background: #eee; }
+.fig { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #ccc; min-height: 100vh; }
+.fig.three { grid-template-columns: 1fr 1fr 1fr; }
+.pane { background: #fafafa; padding: 1.25rem; overflow: auto; }
+.pane > h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; color: #666; margin: 0 0 .1rem; }
+.pane > .sub { font-size: .8rem; color: #777; margin: 0 0 1rem; }
+.caption { grid-column: 1 / -1; background: #fff; padding: .9rem 1.25rem; font-size: .85rem; color: #444; border-bottom: 1px solid #ddd; }
+.caption b { color: #111; }
+iframe { width: 100%; height: 30rem; border: 1px solid #d4d4d4; border-radius: 6px; background: #fff; }
+.count { font-size: .75rem; color: #666; margin: 0 0 .8rem; }
+.count b { color: #111; }
+</style></head><body><div class="fig"><div class="caption"><b>One representation, two consumers.</b> Browsing a date with free tables. Five controls differ only in the slot each one fixes — the value travels inside the control that consumes it, so nobody is asked which slot.</div><div class="pane"><h2>The site's own page</h2><p class="sub">What a person browsing sees.</p><iframe srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;La Trattoria — reservations&lt;/title&gt;
+&lt;link rel=&quot;stylesheet&quot; href=&quot;https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css&quot;&gt;
+&lt;script src=&quot;https://unpkg.com/htmx.org@2.0.4&quot;&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header class=&quot;container&quot;&gt;
+&lt;nav&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;La Trattoria&lt;/strong&gt;&lt;/li&gt;&lt;/ul&gt;&lt;ul&gt;&lt;li&gt;&lt;small&gt;reservations&lt;/small&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/nav&gt;
+&lt;/header&gt;
+&lt;main class=&quot;container&quot;&gt;
+&lt;article id=&quot;booking&quot;&gt;
+&lt;h2&gt;Find a table&lt;/h2&gt;
+&lt;form&gt;
+&lt;label&gt;Date&lt;select name=&quot;date&quot; required&gt;&lt;option value=&quot;tomorrow&quot;&gt;Tomorrow&lt;/option&gt;&lt;option value=&quot;next-week&quot; selected&gt;Next Wednesday&lt;/option&gt;&lt;option value=&quot;saturday&quot;&gt;This Saturday&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;
+&lt;label&gt;Party size&lt;input name=&quot;partySize&quot; type=&quot;number&quot; value=&quot;2&quot; required&gt;&lt;/label&gt;
+&lt;button type=&quot;button&quot; hx-get=&quot;/availability&quot; hx-include=&quot;closest form&quot; hx-target=&quot;#slots&quot; hx-swap=&quot;innerHTML&quot;&gt;Check availability&lt;/button&gt;
+&lt;/form&gt;
+&lt;div id=&quot;slots&quot;&gt;&lt;ul&gt;
+&lt;li&gt;&lt;form method=&quot;POST&quot; action=&quot;/hold&quot;&gt;
+&lt;input type=&quot;hidden&quot; name=&quot;slot&quot; value=&quot;17:00&quot;&gt;
+&lt;button type=&quot;submit&quot;&gt;Hold 17:00&lt;/button&gt;
+&lt;/form&gt;&lt;/li&gt;
+&lt;li&gt;18:00 — &lt;ins&gt;taken&lt;/ins&gt;&lt;/li&gt;
+&lt;li&gt;&lt;form method=&quot;POST&quot; action=&quot;/hold&quot;&gt;
+&lt;input type=&quot;hidden&quot; name=&quot;slot&quot; value=&quot;19:00&quot;&gt;
+&lt;button type=&quot;submit&quot;&gt;Hold 19:00&lt;/button&gt;
+&lt;/form&gt;&lt;/li&gt;
+&lt;li&gt;&lt;form method=&quot;POST&quot; action=&quot;/hold&quot;&gt;
+&lt;input type=&quot;hidden&quot; name=&quot;slot&quot; value=&quot;20:00&quot;&gt;
+&lt;button type=&quot;submit&quot;&gt;Hold 20:00&lt;/button&gt;
+&lt;/form&gt;&lt;/li&gt;
+&lt;li&gt;&lt;form method=&quot;POST&quot; action=&quot;/hold&quot;&gt;
+&lt;input type=&quot;hidden&quot; name=&quot;slot&quot; value=&quot;21:00&quot;&gt;
+&lt;button type=&quot;submit&quot;&gt;Hold 21:00&lt;/button&gt;
+&lt;/form&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/div&gt;
+&lt;/article&gt;
+&lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe></div><div class="pane"><h2>The surface A generates</h2><p class="sub">Parsed from that same page, rendered without a model.</p><p class="count"><b>5</b> controls, all executable now.</p><div class="controls"><form class="control" method="post" action="http://localhost:3999/hold"><header><span class="verb">POST</span> <code>/hold</code></header><input type="hidden" name="slot" value="17:00"><p class="fixed"><span class="tag fix">fixed by the control</span><code>slot=17:00</code></p><button type="submit">Hold 17:00</button></form><form class="control" method="post" action="http://localhost:3999/hold"><header><span class="verb">POST</span> <code>/hold</code></header><input type="hidden" name="slot" value="19:00"><p class="fixed"><span class="tag fix">fixed by the control</span><code>slot=19:00</code></p><button type="submit">Hold 19:00</button></form><form class="control" method="post" action="http://localhost:3999/hold"><header><span class="verb">POST</span> <code>/hold</code></header><input type="hidden" name="slot" value="20:00"><p class="fixed"><span class="tag fix">fixed by the control</span><code>slot=20:00</code></p><button type="submit">Hold 20:00</button></form><form class="control" method="post" action="http://localhost:3999/hold"><header><span class="verb">POST</span> <code>/hold</code></header><input type="hidden" name="slot" value="21:00"><p class="fixed"><span class="tag fix">fixed by the control</span><code>slot=21:00</code></p><button type="submit">Hold 21:00</button></form><form class="control" method="get" action="http://localhost:3999/availability"><header><span class="verb">GET</span> <code>/availability</code></header><p class="field prefilled"><label for="f-date">DateTomorrowNext WednesdayThis Saturday</label><span class="tag pre">prefilled</span><select id="f-date" name="date" required><option value="tomorrow">tomorrow</option><option value="next-week" selected>next-week</option><option value="saturday">saturday</option></select></p><p class="field prefilled"><label for="f-partySize">Party size</label><span class="tag pre">prefilled</span><input type="number" id="f-partySize" name="partySize" value="2" required></p><button type="submit">Check availability</button></form></div></div></div></body></html>

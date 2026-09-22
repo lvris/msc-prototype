@@ -17,13 +17,14 @@
 import express from "express";
 import {
   ALL_ACTION_IDS,
+  canonicalise,
   CONTENDED_SLOT,
+  freeSlots,
   freshSession,
   isAffordanceValid,
   MENU,
   needsDeposit,
   type Session,
-  slotIsFree,
   validAffordances,
 } from "./model.ts";
 import { cancellationPage, confirmationPage, page, panel, slotsFragment } from "./render.ts";
@@ -71,9 +72,11 @@ app.get("/availability", (req, res) => {
 // browsing / conflict / waitlisted (after a release) → hold a slot
 app.post("/hold", (req, res) => {
   if (!guard(req, res, "hold_slot")) return;
-  const slot = String(req.body.slot ?? "");
-  if (!slotIsFree(session, slot)) {
-    res.status(409).type("html").send(`<p>Slot ${slot} is not available.</p>`);
+  // Same tolerance as the menu: a 409 must mean the slot is taken, not that the
+  // time arrived with a stray space around it.
+  const slot = canonicalise(String(req.body.slot ?? ""), freeSlots(session));
+  if (slot === undefined) {
+    res.status(409).type("html").send(`<p>Slot ${String(req.body.slot ?? "")} is not available.</p>`);
     return;
   }
   session.slot = slot;
@@ -202,9 +205,11 @@ app.post("/preorder", (req, res) => {
 
 app.post("/preorder/dishes", (req, res) => {
   if (!guard(req, res, "add_dish")) return;
-  const dish = String(req.body.dish ?? "");
-  if (!(MENU as readonly string[]).includes(dish)) {
-    res.status(400).type("html").send(`<p>No such dish: ${dish}</p>`);
+  // Matched tolerantly and stored in the kitchen's own spelling: a 400 here has
+  // to mean "we do not serve that", not "you capitalised it differently".
+  const dish = canonicalise(String(req.body.dish ?? ""), MENU);
+  if (dish === undefined) {
+    res.status(400).type("html").send(`<p>No such dish: ${String(req.body.dish ?? "")}</p>`);
     return;
   }
   session.preorder.dishes.push(dish);

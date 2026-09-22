@@ -3,9 +3,9 @@
     "states": 997,
     "transitions": 3950,
     "candidates": {
-      "T1": 2541,
-      "T2": 7676,
-      "T3": 8726
+      "T1": 2617,
+      "T2": 8010,
+      "T3": 9313
     },
     "abandoning": [
       "start_over",
@@ -166,14 +166,13 @@
       "id": "T1-05"
     },
     {
-      "goalText": "Go ahead and confirm the booking.",
-      "intent": "finalize",
+      "goalText": "We would like to order the food in advance.",
+      "intent": "start_preorder",
       "satisfiedBy": [
-        "confirm_booking",
-        "pay_deposit"
+        "open_preorder"
       ],
       "validHere": [
-        "confirm_booking"
+        "open_preorder"
       ],
       "startState": {
         "status": "details_entered",
@@ -501,6 +500,70 @@
       "id": "T2-06"
     },
     {
+      "goalText": "Go ahead and confirm the booking.",
+      "intent": "finalize",
+      "satisfiedBy": [
+        "confirm_booking",
+        "pay_deposit"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "holding",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 8,
+        "slot": "20:00"
+      },
+      "startKey": "holding|date=next-week|large|slot=contended|-|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold"
+      ],
+      "routeToGoal": [
+        "POST /details"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-07"
+    },
+    {
+      "goalText": "Add the pasta dish to the advance order.",
+      "intent": "add_dish_vague",
+      "satisfiedBy": [
+        "add_dish"
+      ],
+      "validHere": [],
+      "startState": {
+        "status": "details_entered",
+        "preorder": {
+          "status": "none",
+          "dishes": []
+        },
+        "date": "next-week",
+        "partySize": 2,
+        "slot": "20:00",
+        "guest": {
+          "name": "Ada Lovelace",
+          "phone": "+358 40 123 4567"
+        }
+      },
+      "startKey": "details_entered|date=next-week|small|slot=contended|guest|pre=none/none|-|conflict=-|-",
+      "startPath": [
+        "GET /availability",
+        "POST /hold",
+        "POST /details"
+      ],
+      "routeToGoal": [
+        "POST /preorder"
+      ],
+      "class": "T2",
+      "expectedUnderH": "no such control is rendered here; the agent must first reach a state that renders one",
+      "id": "T2-08"
+    },
+    {
       "goalText": "Add the tiramisù to what we are ordering ahead.",
       "intent": "add_dish",
       "satisfiedBy": [
@@ -598,10 +661,10 @@
       "id": "T3-03"
     },
     {
-      "goalText": "Find out which tables are free.",
-      "intent": "find_availability",
+      "goalText": "Add the pasta dish to the advance order.",
+      "intent": "add_dish_vague",
       "satisfiedBy": [
-        "check_availability"
+        "add_dish"
       ],
       "validHere": [],
       "startState": {

@@ -154,6 +154,42 @@ export const DATES: BookingDate[] = [
 /** The dishes that may be pre-ordered (G3). */
 export const MENU = ["Bruschetta", "Tagliatelle al ragù", "Tiramisù"] as const;
 
+/**
+ * Match a submitted value against the set the server permits, tolerantly.
+ *
+ * Returns the server's own spelling if the input unambiguously denotes one of
+ * the permitted values, and `undefined` if it denotes none of them.
+ *
+ * WHY THIS IS NOT LENIENCY FOR ITS OWN SAKE. The evaluation counts a class of
+ * failure it calls "right action, wrong value": the agent named an operation the
+ * state allows, and supplied a value the server would not take. That is a
+ * meaningful failure only when the value is genuinely not one the server offers.
+ * An exact-match check also rejects `tiramisù` for `Tiramisù` — a difference in
+ * casing, whitespace or Unicode normalisation, not in what was meant — and
+ * filing that under "wrong value" would inflate the measurement with a fact
+ * about string comparison rather than about the interface.
+ *
+ * Case folding, trimming and NFC are the three ways the same intended string
+ * arrives looking different: composed vs decomposed accents (`ù` as one code
+ * point or as `u` + combining grave), copied-in leading spaces, and the casing
+ * of a word lifted out of a sentence. None of them is the agent being wrong
+ * about the menu.
+ *
+ * What survives this is the failure the thesis is actually about: the permitted
+ * values are server state, carried inside the control that consumes them and
+ * absent from any out-of-band schema. A rendered `<select>` cannot name a dish
+ * the kitchen does not serve; a parameter typed `string` has nothing to stop it.
+ */
+const fold = (s: string): string => s.normalize("NFC").trim().toLocaleLowerCase();
+
+export function canonicalise(
+  value: string,
+  permitted: readonly string[],
+): string | undefined {
+  const target = fold(value);
+  return permitted.find((p) => fold(p) === target);
+}
+
 export function freshSession(): Session {
   return { status: "browsing", preorder: { status: "none", dishes: [] } };
 }

@@ -7,3 +7,6 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# transient tee target for a run in progress
+exp/logs/_progress.txt

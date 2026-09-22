@@ -53,9 +53,74 @@ interface Cell {
   succeeded: number;
   abstained: number;
   steps: number;
+  /** proposals that named an action valid in the current state. */
+  valid: number;
+  /**
+   * The two ways a proposal can be invalid, kept apart because they are different
+   * mistakes. The split follows the benchmark literature's out-of-space vs
+   * in-space-but-illegal distinction.
+   *
+   *   offCatalogue  the named thing does not exist at all — the model made it
+   *                 up. Two conditions can express this and the rest cannot: P
+   *                 by constructing a url nothing serves, and X / X+ by calling
+   *                 a tool that was never offered. A condition that selects an
+   *                 index out of a list has no way to say it.
+   *   wrongState    a real operation of this application, issued where the state
+   *                 does not allow it. This is the G1/G2/G5 mistake: the right
+   *                 intent, the wrong one of two same-named operations.
+   */
+  offCatalogue: number;
+  wrongState: number;
+  /**
+   * Episodes that ended because the model produced neither a tool call nor the
+   * stop token. Tool-calling conditions only; it is the no-tool-call rate, and
+   * it belongs next to the invalid action rate rather than inside it — failing
+   * to answer in the protocol is not the same as answering wrongly.
+   */
+  noToolCall: number;
+  /**
+   * Episodes cut because the identical refused request kept being re-sent from a
+   * state that had not moved. Worth reading next to the invalid and wrong-value
+   * columns: before the cut existed, a single stuck episode contributed twenty
+   * proposals and could carry a whole condition's rate on its own.
+   */
+  stuck: number;
+  /** tokens billed, summed over every step and every reprompt. */
+  promptTokens: number;
+  completionTokens: number;
+  /**
+   * Valid action, rejected anyway: the agent picked an operation the state allows
+   * but submitted a value the server would not take — an empty card, a dish that
+   * is not on the menu, a slot another party already has. Counted on `!executed`
+   * rather than on a single status code: the server says 400 for a value it will
+   * not accept and 409 for a slot already gone, and both are the same mistake.
+   *
+   * Under H this cannot happen. A hidden `slot=19:00` exists only on a control the
+   * server rendered, and it rendered that control only because 19:00 is free, so
+   * the value and its legality have one source. Everywhere else the value is
+   * produced by the model, and what a model produces can be wrong.
+   */
+  wrongValue: number;
+  /**
+   * Steps that actually carry provenance. Logs written before it was recorded
+   * still count as proposals, so without this the value columns would be read
+   * against the wrong denominator.
+   */
+  provSteps: number;
+  /** where the submitted values came from (see provenance.ts). */
+  fixed: number;
+  prefilled: number;
+  intent: number;
+  undeclaredField: number;
+  unfounded: number;
 }
 
-const empty = (): Cell => ({ episodes: 0, proposals: 0, invalid: 0, refused: 0, succeeded: 0, abstained: 0, steps: 0 });
+const empty = (): Cell => ({
+  episodes: 0, proposals: 0, invalid: 0, refused: 0, succeeded: 0, abstained: 0, steps: 0,
+  valid: 0, offCatalogue: 0, wrongState: 0, wrongValue: 0,
+  noToolCall: 0, stuck: 0, promptTokens: 0, completionTokens: 0,
+  provSteps: 0, fixed: 0, prefilled: 0, intent: 0, undeclaredField: 0, unfounded: 0,
+});
 
 /** model → condition → task class ("all" included) → cell */
 const table = new Map<string, Map<Condition, Map<string, Cell>>>();
@@ -81,6 +146,28 @@ for (const e of episodes) {
     k.proposals += e.steps.length;
     k.invalid += e.steps.filter((s) => !s.inValidSet).length;
     k.refused += e.steps.filter((s) => s.refused).length;
+    k.valid += e.steps.filter((s) => s.inValidSet).length;
+    k.wrongValue += e.steps.filter((s) => s.inValidSet && !s.executed).length;
+    k.offCatalogue += e.steps.filter((s) => !s.inValidSet && s.proposedId === null).length;
+    k.wrongState += e.steps.filter((s) => !s.inValidSet && s.proposedId !== null).length;
+    if (e.stopReason === "no_tool_call") k.noToolCall++;
+    if (e.stopReason === "stuck") k.stuck++;
+    for (const s of e.steps) {
+      if (s.tokens) {
+        k.promptTokens += s.tokens.prompt;
+        k.completionTokens += s.tokens.completion;
+      }
+      // Logs written before provenance was recorded simply contribute nothing.
+      if (!s.provenance) continue;
+      k.provSteps++;
+      for (const f of s.provenance.fields) {
+        if (f.source === "fixed") k.fixed++;
+        else if (f.source === "prefilled") k.prefilled++;
+        else if (f.source === "intent") k.intent++;
+        else if (f.source === "asked-open" || f.source === "asked-bounded") k.undeclaredField++;
+      }
+      k.unfounded += s.provenance.undeclared.length;
+    }
     if (e.succeeded) k.succeeded++;
     if (e.stopReason === "agent_stop") k.abstained++;
   }
@@ -88,10 +175,21 @@ for (const e of episodes) {
 
 const pct = (n: number, d: number): string => (d === 0 ? "—" : `${((100 * n) / d).toFixed(1)}%`);
 
+/**
+ * Conditions in the canonical order, followed by any the logs contain that the
+ * current design does not name. Older runs used earlier names, and silently
+ * dropping their rows would make a log look empty rather than out of date.
+ */
+function ordered(byCond: Map<Condition, Map<string, Cell>>): Condition[] {
+  const known = CONDITIONS.filter((c) => byCond.has(c));
+  const extra = [...byCond.keys()].filter((c) => !CONDITIONS.includes(c)).sort();
+  return [...known, ...extra];
+}
+
 if (asLatex) {
   console.log("% invalid action rate / task success, by condition. H is 0 BY CONSTRUCTION.");
   for (const [model, byCond] of table) {
-    for (const c of CONDITIONS) {
+    for (const c of ordered(byCond)) {
       const k = byCond.get(c)?.get("all");
       if (!k) continue;
       console.log(
@@ -104,7 +202,7 @@ if (asLatex) {
   for (const [model, byCond] of table) {
     console.log(`\n══ ${model} ══`);
     console.log("cond  class  eps  props  invalid   refused   success   abstain   steps/ep");
-    for (const c of CONDITIONS) {
+    for (const c of ordered(byCond)) {
       const byClass = byCond.get(c);
       if (!byClass) continue;
       for (const klass of ["all", "T1", "T2", "T3"]) {
@@ -119,6 +217,89 @@ if (asLatex) {
       }
       console.log("");
     }
+
+    // ── the value side ───────────────────────────────────────────────────────
+    // Two questions the invalid-action rate cannot answer: where did the values
+    // come from, and did naming a legal action actually suffice?
+    // ── how the invalid proposals were invalid ───────────────────────────────
+    console.log("      invalid proposals ──────────────");
+    console.log("cond   off-catalogue   wrong-state   (of invalid)");
+    for (const c of ordered(byCond)) {
+      const k = byCond.get(c)?.get("all");
+      if (!k) continue;
+      console.log(
+        `${c.padEnd(5)} ${String(k.offCatalogue).padStart(9)} ${pct(k.offCatalogue, k.invalid).padStart(8)}` +
+          ` ${String(k.wrongState).padStart(8)} ${pct(k.wrongState, k.invalid).padStart(8)}` +
+          `   ${k.invalid} invalid`,
+      );
+    }
+    console.log(
+      "\n  off-catalogue = the named thing does not exist; the model invented it. Only P\n" +
+        "                  (a url nothing serves) and X / X+ (a tool never offered) can\n" +
+        "                  express this; picking an index out of a list cannot.\n" +
+        "  wrong-state   = a real operation, issued where the state does not allow it.\n",
+    );
+
+    console.log("       steps    values submitted ─────────────────────   right action,");
+    console.log("cond   w/prov   fixed  prefill   intent  undecl  unfnd   wrong value");
+    for (const c of ordered(byCond)) {
+      const k = byCond.get(c)?.get("all");
+      if (!k) continue;
+      console.log(
+        `${c.padEnd(5)} ${`${k.provSteps}/${k.proposals}`.padStart(8)} ` +
+          `${String(k.fixed).padStart(7)} ${String(k.prefilled).padStart(8)} ` +
+          `${String(k.intent).padStart(8)} ${String(k.undeclaredField).padStart(7)} ` +
+          `${String(k.unfounded).padStart(6)}   ${String(k.wrongValue).padStart(4)} of ${String(k.valid).padStart(4)} valid ` +
+          `${pct(k.wrongValue, k.valid).padStart(7)}`,
+      );
+    }
+    console.log(
+      "\n  w/prov = steps carrying provenance; logs predating it count as proposals but\n" +
+        "           contribute no values, so read the value columns against this, not props.\n" +
+        "  fixed/prefill = the surface carried the value   intent = the model supplied it\n" +
+        "  undecl = nobody did, so the harness stood in for the user\n" +
+        "  unfnd  = model supplied a field the control never declared (unfounded elicitation)\n" +
+        "  wrong value = action was legal here, but the value was refused anyway",
+    );
+
+    // ── cost, and the protocol's own failure mode ────────────────────────────
+    console.log("\n       tokens ────────────────────────────    no tool call");
+    console.log("cond     prompt  completion     total   /ep    (X / X+ only)");
+    for (const c of ordered(byCond)) {
+      const k = byCond.get(c)?.get("all");
+      if (!k) continue;
+      const total = k.promptTokens + k.completionTokens;
+      console.log(
+        `${c.padEnd(5)} ${String(k.promptTokens).padStart(9)} ${String(k.completionTokens).padStart(11)} ` +
+          `${String(total).padStart(9)} ${(total / (k.episodes || 1)).toFixed(0).padStart(6)}   ` +
+          `${String(k.noToolCall).padStart(6)} ${pct(k.noToolCall, k.episodes).padStart(7)}` +
+          `   ${String(k.stuck).padStart(5)} ${pct(k.stuck, k.episodes).padStart(7)}`,
+      );
+    }
+    console.log(
+      "\n  tokens are summed over every step AND every reprompt, so a condition that\n" +
+        "  needs re-asking is charged for it. Zero means the backend reported no usage\n" +
+        "  (the random floor makes no model call at all).\n" +
+        "  no tool call = the model answered in neither the protocol nor the stop token.\n" +
+        "                 A measurement, not a harness fault; cf. NTC in the benchmarks.",
+    );
   }
-  console.log("note: H invalid = 0 is a structural guarantee, not a measurement.");
+  console.log(
+    "\nnote: invalid = 0 is a STRUCTURAL GUARANTEE in every condition whose offered set is\n" +
+      "      narrowed to the current state — H and X+ both. The agent acts on a set that\n" +
+      "      contains only legal actions, so no other value is expressible. Only J, J+, X\n" +
+      "      and P measure anything in that column.\n" +
+      "note: H and X+ are therefore NOT separated by it, and are not meant to be. What\n" +
+      "      separates them is the value side: X+ names the parameters an operation takes,\n" +
+      "      H carries the values the current state gives them. Read the value table for\n" +
+      "      that, and the wrong-value column in particular.\n" +
+      "note: H wrong-value = 0 is structural too — a declared value is only rendered where\n" +
+      "      it is legal, so the value and its legality share one source. X+'s is not: it\n" +
+      "      must produce the value itself, and what a model produces can be wrong.\n" +
+      "note: J+ vs X is the protocol cell. Same operations, same descriptions, same\n" +
+      "      parameters; one is read as text and chosen by index, the other is served by\n" +
+      "      a real MCP server and invoked by a native tool call. A gap here would mean\n" +
+      "      the comparison is about the protocol; its absence is what licenses reading\n" +
+      "      X -> X+ as being about state-dependence.",
+  );
 }

@@ -18,7 +18,7 @@
  * site's behaviour must not depend on it, or the comparison would be rigged.
  */
 
-import type { ActionId, Method } from "./model.ts";
+import { DATES, MENU, type ActionId, type Method } from "./model.ts";
 
 export interface CatalogueEntry {
   id: ActionId;
@@ -206,6 +206,30 @@ export const CATALOGUE: CatalogueEntry[] = [
     note: "Only from a finished session.",
   },
 ];
+
+/**
+ * Parameters whose permitted values are a FIXED fact about the application.
+ *
+ * The menu does not change with the booking, and neither does the list of dates
+ * the restaurant takes reservations for. A static catalogue can therefore state
+ * them, and a static tool schema can put them in a JSON Schema `enum`. Any
+ * competent author of either would, so withholding them would not be measuring a
+ * limitation of catalogues — it would be measuring a catalogue written badly, and
+ * the baseline is supposed to get the strongest honest form of itself.
+ *
+ * WHAT IS DELIBERATELY ABSENT. `slot` is not here. Which sittings are free is a
+ * fact about the current state, not about the application, so no fixed table can
+ * carry it — that is the distinction the whole experiment turns on, and
+ * `b1/mcp.ts` adds it for the dynamic condition alone.
+ *
+ * `card`, `phone`, `name` and `reason` are not here either, for the opposite
+ * reason: they have no permitted set. Only the user knows them, which is what
+ * makes them elicitation rather than selection.
+ */
+export const STATIC_DOMAINS: Readonly<Record<string, readonly string[]>> = {
+  dish: MENU,
+  date: DATES.map((d) => d.id),
+};
 
 /** Plausible values for every parameter in the catalogue, so a request can be built. */
 export const SAMPLE_VALUES: Record<string, string> = {

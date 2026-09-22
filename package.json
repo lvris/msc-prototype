@@ -13,9 +13,15 @@
     "a:check": "tsx a/check.ts",
     "exp:run": "tsx exp/run.ts",
     "exp:report": "tsx exp/report.ts",
-    "typecheck": "tsc --noEmit"
+    "exp:check-judges": "tsx exp/check-judges.ts",
+    "exp:check-mcp": "tsx exp/check-mcp.ts",
+    "b1:mcp": "tsx b1/mcp.ts",
+    "typecheck": "tsc --noEmit",
+    "exp:elicitation": "tsx exp/elicitation-scan.ts",
+    "exp:figures": "tsx exp/figures.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "express": "^4.21.2",
     "linkedom": "^0.18.5"
   },
