@@ -25,13 +25,26 @@ import { type Condition, CONSTRUCTS, type Surfacer, TOOLCALL } from "./surface.t
 export const MAX_STEPS = 20;
 
 /**
- * How many times the identical refused request is recorded before the episode
- * is cut. Three: the first observation, plus two that confirm the state really
- * has not moved underneath it. Applied identically in every condition, so it
- * cannot advantage one — it only stops one of them from being charged twenty
- * proposals for a single fact.
+ * How many identical refused requests end the episode.
+ *
+ * TWO PROBLEMS HIDE HERE AND THEY NEED TWO MECHANISMS. One is that a loop
+ * inflates every per-proposal rate: an episode that re-sends one refused request
+ * twenty times contributes twenty proposals for a single fact. The other is that
+ * an agent stuck forever should not burn the whole step budget.
+ *
+ * Cutting the episode was tried for both and is wrong for the first. Recovery
+ * takes a few steps — in one run a tool-calling agent re-sent the same refused
+ * request twice and changed course on the third, while a catalogue agent was cut
+ * at its third and never got the chance. A threshold low enough to control the
+ * metric sits exactly where the conditions differ, and truncates the behaviour
+ * it was supposed to be measuring.
+ *
+ * So the metric is handled by MARKING duplicates (`StepRecord.duplicate`) and
+ * letting the report divide by distinct attempts, and this limit is only the
+ * safety net against a genuine infinite loop. It is deliberately generous: it
+ * should fire on pathology, never on an agent that is still finding its way.
  */
-export const STUCK_LIMIT = 3;
+export const STUCK_LIMIT = 8;
 
 export interface Task {
   id: string;
@@ -86,6 +99,16 @@ export interface StepRecord {
   toolName: string | null;
   /** tokens spent on this decision, when the backend reports them. */
   tokens: Usage | null;
+  /**
+   * This exact request was already refused from this exact state earlier in the
+   * episode, so the outcome was settled before it was sent.
+   *
+   * Reported separately rather than dropped. How often an agent repeats itself
+   * is a real property of it — but counting each repeat as a fresh proposal lets
+   * one stuck episode carry a whole condition's invalid-action rate, so the
+   * report divides by distinct attempts as well as by all of them.
+   */
+  duplicate: boolean;
 }
 
 /**
@@ -351,6 +374,11 @@ export async function runEpisode(opts: {
     const ok = res.status < 400;
     const satisfiedGoal = ok && proposedId !== null && task.satisfiedBy.includes(proposedId);
 
+    // Keyed on the state as well as the request: the same request from a state
+    // that HAS moved is a different attempt and shares nothing with this one.
+    const attempt = `${stateKey(snap.session)}|${chosen.method} ${chosen.url}|${new URLSearchParams(values).toString()}`;
+    const duplicate = repeats.has(attempt);
+
     steps.push({
       step,
       stateKey: stateKey(snap.session),
@@ -367,6 +395,7 @@ export async function runEpisode(opts: {
       values,
       toolName,
       tokens: choice.usage ?? null,
+      duplicate,
     });
     /**
      * The history line names the action the way the condition named it: by tool
@@ -392,9 +421,6 @@ export async function runEpisode(opts: {
       break;
     }
 
-    // Keyed on the state as well as the request: the same request from a state
-    // that HAS moved is a different observation and resets nothing.
-    const attempt = `${stateKey(snap.session)}|${chosen.method} ${chosen.url}|${new URLSearchParams(values).toString()}`;
     if (ok) {
       repeats.clear();
     } else {

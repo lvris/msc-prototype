@@ -72,6 +72,20 @@ interface Cell {
   offCatalogue: number;
   wrongState: number;
   /**
+   * The same counts over DISTINCT attempts only — proposals whose (state,
+   * request) pair had not already been refused earlier in the episode.
+   *
+   * Both denominators are reported because they answer different questions. The
+   * pooled rate is per decision, which is what the benchmark literature's
+   * invalid action rate means, but it lets one agent that repeats itself carry a
+   * whole condition. The distinct rate asks how often the action source led
+   * somewhere illegal at all, and is unmoved by how long the agent stayed there.
+   * A large gap between them is itself a finding: it says the condition's rate
+   * is made of few mistakes held for a long time, not many mistakes.
+   */
+  distinct: number;
+  distinctInvalid: number;
+  /**
    * Episodes that ended because the model produced neither a tool call nor the
    * stop token. Tool-calling conditions only; it is the no-tool-call rate, and
    * it belongs next to the invalid action rate rather than inside it — failing
@@ -118,7 +132,7 @@ interface Cell {
 const empty = (): Cell => ({
   episodes: 0, proposals: 0, invalid: 0, refused: 0, succeeded: 0, abstained: 0, steps: 0,
   valid: 0, offCatalogue: 0, wrongState: 0, wrongValue: 0,
-  noToolCall: 0, stuck: 0, promptTokens: 0, completionTokens: 0,
+  noToolCall: 0, stuck: 0, distinct: 0, distinctInvalid: 0, promptTokens: 0, completionTokens: 0,
   provSteps: 0, fixed: 0, prefilled: 0, intent: 0, undeclaredField: 0, unfounded: 0,
 });
 
@@ -150,6 +164,10 @@ for (const e of episodes) {
     k.wrongValue += e.steps.filter((s) => s.inValidSet && !s.executed).length;
     k.offCatalogue += e.steps.filter((s) => !s.inValidSet && s.proposedId === null).length;
     k.wrongState += e.steps.filter((s) => !s.inValidSet && s.proposedId !== null).length;
+    // `duplicate` is absent from logs written before it was recorded; treating
+    // those steps as distinct keeps the old denominator rather than inventing one.
+    k.distinct += e.steps.filter((s) => s.duplicate !== true).length;
+    k.distinctInvalid += e.steps.filter((s) => s.duplicate !== true && !s.inValidSet).length;
     if (e.stopReason === "no_tool_call") k.noToolCall++;
     if (e.stopReason === "stuck") k.stuck++;
     for (const s of e.steps) {
@@ -201,7 +219,7 @@ if (asLatex) {
 } else {
   for (const [model, byCond] of table) {
     console.log(`\n══ ${model} ══`);
-    console.log("cond  class  eps  props  invalid   refused   success   abstain   steps/ep");
+    console.log("cond  class  eps  props  invalid  invalid*   refused   success   abstain   steps/ep");
     for (const c of ordered(byCond)) {
       const byClass = byCond.get(c);
       if (!byClass) continue;
@@ -211,6 +229,7 @@ if (asLatex) {
         console.log(
           `${c.padEnd(5)} ${klass.padEnd(6)} ${String(k.episodes).padStart(3)} ` +
             `${String(k.proposals).padStart(6)} ${pct(k.invalid, k.proposals).padStart(8)} ` +
+            `${pct(k.distinctInvalid, k.distinct).padStart(9)} ` +
             `${pct(k.refused, k.proposals).padStart(9)} ${pct(k.succeeded, k.episodes).padStart(9)} ` +
             `${pct(k.abstained, k.episodes).padStart(9)} ${(k.steps / k.episodes).toFixed(1).padStart(10)}`,
         );
@@ -277,7 +296,15 @@ if (asLatex) {
       );
     }
     console.log(
-      "\n  tokens are summed over every step AND every reprompt, so a condition that\n" +
+      "\n  invalid  = over every proposal (per decision, as the benchmarks define it)\n" +
+        "  invalid* = over DISTINCT (state, request) attempts only — a repeat of a request\n" +
+        "             already refused from an unmoved state is counted once. Where the two\n" +
+        "             diverge, the condition's rate is few mistakes held for a long time\n" +
+        "             rather than many mistakes.\n",
+    );
+
+    console.log(
+      "  tokens are summed over every step AND every reprompt, so a condition that\n" +
         "  needs re-asking is charged for it. Zero means the backend reported no usage\n" +
         "  (the random floor makes no model call at all).\n" +
         "  no tool call = the model answered in neither the protocol nor the stop token.\n" +
