@@ -16,6 +16,25 @@
  *   X+  MCP, dynamic tool list    yes        YES             no           YES
  *   H   rendered controls         yes        YES            YES            no
  *
+ * TWO FAMILIES, NOT ONE LADDER. The table above reads as a line from P to H, and
+ * that is the wrong shape. P and H consume the SAME ARTIFACT: raw HTML already
+ * contains the controls the server rendered, so P is not inferring an action
+ * space out of arbitrary markup — it is reading the hypermedia, without a parser
+ * and without being held to it. The first run bears this out: 86.8% of the
+ * requests P built for itself named an action that was in the server's valid set
+ * at that moment, including both gated cases (it paid the deposit rather than
+ * confirming, and requested cancellation rather than cancelling). Its mistakes
+ * were a single kind — the path read off the page, the method guessed wrong.
+ *
+ *   read the representation:   P (may deviate) ──────→ H (cannot)
+ *   read a contract:           J → J+ → X → X+
+ *
+ * So `H vs P` holds the information fixed and varies only the constraint, which
+ * makes it the most direct test of the claim, not the weakest condition in a
+ * line. And P scoring well is the claim's first half rather than a threat to it:
+ * a representation that were a poor action source would mean a separate contract
+ * really is necessary.
+ *
  *   P → J   is the action space handed over, or must it be inferred from the page?
  *   J → J+  does stating each precondition in prose compensate for a list that
  *           cannot narrow itself?

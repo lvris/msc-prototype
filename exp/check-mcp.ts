@@ -221,6 +221,44 @@ section("M1b — a tool that does not exist is reported as an error");
   assert(/no such tool/i.test(r.text), "M1b … and says so rather than doing something else");
 }
 
+// ── M1c — a real tool that tools/list did not offer ─────────────────────────
+
+/**
+ * The case the headline finding is made of, and the one the harness got wrong
+ * first time round.
+ *
+ * Under X+ a weaker model sometimes calls an operation that was listed at an
+ * earlier step and is no longer offered. What the SERVER does with that call is
+ * the whole question: it looks the name up in the catalogue, performs it, and
+ * lets the guard refuse it. An earlier version of `episode.ts` instead turned
+ * such calls into a request to `/<toolName>`, which 404s — so the same event was
+ * recorded as "invented an endpoint" rather than "used a stale entry", and the
+ * harness disagreed with its own server about what had happened.
+ *
+ * M1 samples only catalogued actions and so never exercised this, which is how
+ * the disagreement survived. This asserts it directly.
+ */
+section("M1c — an unoffered but real tool is refused by the guard, not 404'd");
+
+{
+  await resetTo(BASE, { status: "browsing", date: "next-week", partySize: 2 });
+  const offered = new Set(((await dyn.surface()).tools ?? []).map((t) => t.name));
+  assert(!offered.has("release_hold"), "M1c release_hold is not offered while browsing");
+
+  const viaMcp = await dyn.call("release_hold", {});
+  assert(viaMcp.isError, "M1c … and calling it anyway is refused");
+  assert(
+    /409/.test(viaMcp.text),
+    `M1c … by the guard (409), not as a missing route (got: ${viaMcp.text.slice(0, 60)})`,
+  );
+
+  const viaHttp = await directly("release_hold", {});
+  assert(
+    viaHttp.status === 409,
+    `M1c … and direct HTTP agrees (got ${viaHttp.status}) — this is the path episode.ts must take`,
+  );
+}
+
 await statik.close();
 await dyn.close();
 

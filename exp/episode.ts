@@ -308,20 +308,46 @@ export async function runEpisode(opts: {
     let toolName: string | null = choice.toolName ?? null;
     if (choice.toolName !== undefined) {
       const i = surface.tools?.findIndex((t) => t.name === choice.toolName) ?? -1;
-      chosen =
-        i >= 0
-          ? affs[i]
+      if (i >= 0) {
+        chosen = affs[i];
+      } else {
+        /**
+         * A name `tools/list` did not return. There are two of these and they are
+         * not the same mistake, so the catalogue decides which one happened —
+         * exactly as `b1/mcp.ts` decides it, because that is what the server
+         * would really do with this call.
+         *
+         *   a real operation, not currently offered — typically one the model saw
+         *     listed at an earlier step and reached for again after the state
+         *     moved. The server finds it, performs it, and the guard refuses it.
+         *     The request is real; its timing is wrong.
+         *   a name that is no operation at all — nothing to perform, so it lands
+         *     on a path nothing serves.
+         *
+         * Routing the first case through `/${toolName}` (an earlier version of
+         * this code) made every such call a 404, which is neither what the server
+         * does nor what the model did. It also filed the whole class under
+         * "invented an endpoint" when most of it is "used a stale entry" — and
+         * staleness is the more interesting failure, since it is the one a
+         * contract that re-issues its schema is supposed to have solved.
+         */
+        const entry = entryFor(choice.toolName);
+        chosen = entry
+          ? {
+              method: entry.method as Affordance["method"],
+              url: entry.url,
+              fields: entry.params.map((p) => ({ name: p, type: "text", required: true })),
+              label: `called ${entry.id}, which tools/list did not offer`,
+              source: "native",
+            }
           : {
-              // A tool that was never offered. It is turned into a request to a
-              // path that does not exist, so it 404s and `actionIdOf` returns
-              // null — the same off-catalogue outcome a made-up url gets under
-              // P. Resolving it to the nearest real tool would erase the error.
               method: "POST",
               url: `/${choice.toolName}`,
               fields: [],
-              label: `called an unoffered tool: ${choice.toolName}`,
+              label: `called a tool that does not exist: ${choice.toolName}`,
               source: "native",
             };
+      }
     } else if (choice.action) {
       chosen = {
         method: choice.action.method,

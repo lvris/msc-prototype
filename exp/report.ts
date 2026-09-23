@@ -72,6 +72,20 @@ interface Cell {
   offCatalogue: number;
   wrongState: number;
   /**
+   * Tool-calling only: the model named a REAL operation that `tools/list` did
+   * not return — almost always one it saw offered at an earlier step and reached
+   * for again after the state moved.
+   *
+   * Counted apart from both neighbours because it is the finding. It is not an
+   * invented endpoint (the operation exists), and it is not an ordinary
+   * wrong-state call (the surface had already withdrawn it). It is a stale
+   * entry, and staleness is precisely what a contract that re-issues its schema
+   * is supposed to have solved. H cannot produce this row at all: its agent
+   * returns an index, and there is no index for an action that is not on the
+   * list.
+   */
+  staleTool: number;
+  /**
    * The same counts over DISTINCT attempts only — proposals whose (state,
    * request) pair had not already been refused earlier in the episode.
    *
@@ -132,7 +146,7 @@ interface Cell {
 const empty = (): Cell => ({
   episodes: 0, proposals: 0, invalid: 0, refused: 0, succeeded: 0, abstained: 0, steps: 0,
   valid: 0, offCatalogue: 0, wrongState: 0, wrongValue: 0,
-  noToolCall: 0, stuck: 0, distinct: 0, distinctInvalid: 0, promptTokens: 0, completionTokens: 0,
+  noToolCall: 0, stuck: 0, staleTool: 0, distinct: 0, distinctInvalid: 0, promptTokens: 0, completionTokens: 0,
   provSteps: 0, fixed: 0, prefilled: 0, intent: 0, undeclaredField: 0, unfounded: 0,
 });
 
@@ -166,6 +180,9 @@ for (const e of episodes) {
     k.wrongState += e.steps.filter((s) => !s.inValidSet && s.proposedId !== null).length;
     // `duplicate` is absent from logs written before it was recorded; treating
     // those steps as distinct keeps the old denominator rather than inventing one.
+    k.staleTool += e.steps.filter(
+      (s) => !s.inValidSet && s.toolName !== null && s.proposedId !== null,
+    ).length;
     k.distinct += e.steps.filter((s) => s.duplicate !== true).length;
     k.distinctInvalid += e.steps.filter((s) => s.duplicate !== true && !s.inValidSet).length;
     if (e.stopReason === "no_tool_call") k.noToolCall++;
@@ -242,13 +259,14 @@ if (asLatex) {
     // come from, and did naming a legal action actually suffice?
     // ── how the invalid proposals were invalid ───────────────────────────────
     console.log("      invalid proposals ──────────────");
-    console.log("cond   off-catalogue   wrong-state   (of invalid)");
+    console.log("cond   off-catalogue   wrong-state    stale tool   (of invalid)");
     for (const c of ordered(byCond)) {
       const k = byCond.get(c)?.get("all");
       if (!k) continue;
       console.log(
         `${c.padEnd(5)} ${String(k.offCatalogue).padStart(9)} ${pct(k.offCatalogue, k.invalid).padStart(8)}` +
           ` ${String(k.wrongState).padStart(8)} ${pct(k.wrongState, k.invalid).padStart(8)}` +
+          ` ${String(k.staleTool).padStart(8)} ${pct(k.staleTool, k.invalid).padStart(8)}` +
           `   ${k.invalid} invalid`,
       );
     }
@@ -312,14 +330,15 @@ if (asLatex) {
     );
   }
   console.log(
-    "\nnote: invalid = 0 is a STRUCTURAL GUARANTEE in every condition whose offered set is\n" +
-      "      narrowed to the current state — H and X+ both. The agent acts on a set that\n" +
-      "      contains only legal actions, so no other value is expressible. Only J, J+, X\n" +
-      "      and P measure anything in that column.\n" +
-      "note: H and X+ are therefore NOT separated by it, and are not meant to be. What\n" +
-      "      separates them is the value side: X+ names the parameters an operation takes,\n" +
-      "      H carries the values the current state gives them. Read the value table for\n" +
-      "      that, and the wrong-value column in particular.\n" +
+    "\nnote: invalid = 0 is a STRUCTURAL GUARANTEE under H ONLY, and the reason is not that\n" +
+      "      its set is filtered — X+'s is filtered too. It is that H's agent SELECTS: it\n" +
+      "      returns an index, and an index outside the offered set is not a wrong answer\n" +
+      "      but an unrepresentable one. X+'s agent NAMES: it emits a tool name as a\n" +
+      "      string, and a string can be any string. Filtering decides what is OFFERED;\n" +
+      "      only selection decides what is EXPRESSIBLE.\n" +
+      "note: so X+ > 0 in this column is not a bug in the server. It is a weaker model\n" +
+      "      calling a tool that `tools/list` did not return — and it scales with\n" +
+      "      capability, while H's zero does not. Compare the arms.\n" +
       "note: H wrong-value = 0 is structural too — a declared value is only rendered where\n" +
       "      it is legal, so the value and its legality share one source. X+'s is not: it\n" +
       "      must produce the value itself, and what a model produces can be wrong.\n" +

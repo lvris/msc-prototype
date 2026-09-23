@@ -465,6 +465,19 @@ function renderToolUser(ctx: ChooseContext): string {
 function parseToolCall(message: RawMessage): Choice {
   const call = message.tool_calls?.[0];
   if (call?.function?.name) {
+    /**
+     * The model expressed the stopping rule as a call to a tool named `stop`
+     * rather than as the plain word.
+     *
+     * Read as abstention, not as naming a nonexistent tool. The instruction is
+     * "do not call a tool: reply with STOP", and a model that answers by calling
+     * `stop` has understood what to do and disagreed about how to say it. Weaker
+     * models do this often. Counting it as an invalid action would charge the
+     * tool-calling conditions for a wording convention of ours, and would inflate
+     * exactly the column that the hallucinated-tool finding lives in — so the two
+     * have to be told apart here, before either is counted.
+     */
+    if (call.function.name.trim().toLowerCase() === "stop") return { index: -1, values: {} };
     const values: Record<string, string> = {};
     try {
       const args = JSON.parse(call.function.arguments ?? "{}") as Record<string, unknown>;
