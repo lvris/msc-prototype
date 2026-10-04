@@ -172,6 +172,11 @@ export interface ModelConfig {
    * variance.
    */
   temperature: number;
+  /**
+   * OpenRouter only: pin one upstream provider with no fallback, so a run is not
+   * silently spread across providers serving different quantizations.
+   */
+  provider?: string;
 }
 
 export function modelConfigFromEnv(): ModelConfig {
@@ -180,6 +185,7 @@ export function modelConfigFromEnv(): ModelConfig {
     model: process.env.A_MODEL ?? "qwen2.5:7b",
     key: process.env.A_MODEL_KEY ?? "ollama",
     temperature: Number(process.env.A_MODEL_TEMP ?? "0"),
+    provider: process.env.A_MODEL_PROVIDER || undefined,
   };
 }
 
@@ -259,32 +265,68 @@ async function callModel(
   messages: ChatMessage[],
   tools?: ToolDef[],
 ): Promise<ModelReply> {
-  const res = await fetch(`${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
-    body: JSON.stringify({
-      model: cfg.model,
-      temperature: cfg.temperature,
-      messages,
-      ...(tools?.length
-        ? {
-            tools: tools.map((t) => ({
-              type: "function",
-              function: { name: t.name, description: t.description, parameters: t.inputSchema },
-            })),
-          }
-        : {}),
-    }),
+  const body = JSON.stringify({
+    model: cfg.model,
+    temperature: cfg.temperature,
+    ...(cfg.provider ? { provider: { order: [cfg.provider], allow_fallbacks: false } } : {}),
+    messages,
+    ...(tools?.length
+      ? {
+          tools: tools.map((t) => ({
+            type: "function",
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          })),
+        }
+      : {}),
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const hint = res.status === 404 ? ` — is model "${cfg.model}" pulled? (\`ollama list\`)` : "";
-    throw new Error(`model HTTP ${res.status}${hint}${body ? `: ${body.slice(0, 300)}` : ""}`);
-  }
-  const data = (await res.json()) as {
+  /**
+   * Hosted endpoints (OpenRouter free tier especially) answer 429/5xx under load.
+   * Those are transport failures, not the model's choice, so they are retried with
+   * backoff rather than charged to the episode. The request body is unchanged.
+   *
+   * The timeout covers the whole exchange, body included: a connection that a
+   * proxy holds open without ever answering would otherwise stall a run forever,
+   * and one cut mid-body ("terminated") is the same transport fault as a reset.
+   */
+  const timeoutMs = Number(process.env.A_MODEL_TIMEOUT_MS ?? "300000");
+  type Data = {
     choices?: { message?: RawMessage }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
+  let data: Data;
+  for (let attempt = 0; ; attempt++) {
+    let why: string;
+    try {
+      const res = await fetch(`${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status === 429 || res.status >= 500) {
+        why = `HTTP ${res.status}`;
+        await res.body?.cancel();
+      } else if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const hint = res.status === 404 ? ` — is model "${cfg.model}" pulled? (\`ollama list\`)` : "";
+        throw Object.assign(
+          new Error(`model HTTP ${res.status}${hint}${text ? `: ${text.slice(0, 300)}` : ""}`),
+          { fatal: true },
+        );
+      } else {
+        data = (await res.json()) as Data;
+        break;
+      }
+    } catch (e) {
+      if ((e as { fatal?: boolean }).fatal) throw e;
+      // network-level failure (proxy hiccup, reset, timeout): same treatment as a 5xx
+      why = (e as Error).message;
+    }
+    if (attempt >= 12) throw new Error(`model request failed: ${why}`);
+    const wait = Math.min(60_000, 3_000 * 2 ** attempt);
+    console.warn(`  model ${why}, retry ${attempt + 1} in ${wait / 1000}s`);
+    await new Promise((r) => setTimeout(r, wait));
+  }
   const message = data.choices?.[0]?.message;
   if (!message) throw new Error("model returned no message");
   return {
