@@ -1,0 +1,425 @@
+
+══ qwen3.5:2b@t0 ══
+cond  class  eps  props  invalid  invalid*   refused   success   abstain   steps/ep
+P     all     24     43    58.1%     52.6%     23.3%     62.5%     50.0%        1.8
+P     T1      10     12    41.7%     30.0%      0.0%     70.0%     10.0%        1.2
+P     T2       8     23    60.9%     59.1%     26.1%     25.0%     62.5%        2.9
+P     T3       6      8    75.0%     66.7%     50.0%    100.0%    100.0%        1.3
+
+J     all     24      8    50.0%     42.9%     50.0%     33.3%     91.7%        0.3
+J     T1      10      3    33.3%     33.3%     33.3%     20.0%     80.0%        0.3
+J     T2       8      2   100.0%    100.0%    100.0%      0.0%    100.0%        0.3
+J     T3       6      3    33.3%     33.3%     33.3%    100.0%    100.0%        0.5
+
+J+    all     24      6    33.3%     33.3%     33.3%     20.8%     70.8%        0.3
+J+    T1      10      4    50.0%     50.0%     50.0%     10.0%     70.0%        0.4
+J+    T2       8      2     0.0%      0.0%      0.0%      0.0%     75.0%        0.3
+J+    T3       6      0        —         —         —     66.7%     66.7%        0.0
+
+X     all     24    147    72.8%     53.5%     72.8%     62.5%     20.8%        6.1
+X     T1      10     14    35.7%     30.8%     35.7%     90.0%     10.0%        1.4
+X     T2       8     71    78.9%     61.5%     78.9%     37.5%     12.5%        8.9
+X     T3       6     62    74.2%     52.9%     74.2%     50.0%     50.0%       10.3
+
+X+    all     24    147     6.1%      5.5%      6.1%     66.7%     16.7%        6.1
+X+    T1      10     22     0.0%      0.0%      0.0%     80.0%      0.0%        2.2
+X+    T2       8     61     8.2%      6.7%      8.2%     62.5%     12.5%        7.6
+X+    T3       6     64     6.3%      6.3%      6.3%     50.0%     50.0%       10.7
+
+H     all     24     12     0.0%      0.0%      0.0%     45.8%     79.2%        0.5
+H     T1      10      6     0.0%      0.0%      0.0%     50.0%     50.0%        0.6
+H     T2       8      4     0.0%      0.0%      0.0%      0.0%    100.0%        0.5
+H     T3       6      2     0.0%      0.0%      0.0%    100.0%    100.0%        0.3
+
+      invalid proposals ──────────────
+cond   off-catalogue   wrong-state    stale tool   (of invalid)
+P            15    60.0%       10    40.0%        0     0.0%   25 invalid
+J             0     0.0%        4   100.0%        0     0.0%   4 invalid
+J+            0     0.0%        2   100.0%        0     0.0%   2 invalid
+X             0     0.0%      107   100.0%      107   100.0%   107 invalid
+X+            0     0.0%        9   100.0%        9   100.0%   9 invalid
+H             0        —        0        —        0        —   0 invalid
+
+  off-catalogue = the named thing does not exist; the model invented it. Only P
+                  (a url nothing serves) and X / X+ (a tool never offered) can
+                  express this; picking an index out of a list cannot.
+  wrong-state   = a real operation, issued where the state does not allow it.
+
+       steps    values submitted ─────────────────────   right action,
+cond   w/prov   fixed  prefill   intent  undecl  unfnd   wrong value
+P        43/43       0        0        6      15     10      0 of   18 valid    0.0%
+J          8/8       0        0        1       7      5      0 of    4 valid    0.0%
+J+         6/6       0        0        1       6      3      0 of    4 valid    0.0%
+X      147/147       0        0       85       2      0      0 of   40 valid    0.0%
+X+     147/147       0        0      140       7      1      0 of  138 valid    0.0%
+H        12/12       0        2        2       7      2      0 of   12 valid    0.0%
+
+  w/prov = steps carrying provenance; logs predating it count as proposals but
+           contribute no values, so read the value columns against this, not props.
+  fixed/prefill = the surface carried the value   intent = the model supplied it
+  undecl = nobody did, so the harness stood in for the user
+  unfnd  = model supplied a field the control never declared (unfounded elicitation)
+  wrong value = action was legal here, but the value was refused anyway
+
+       tokens ────────────────────────────    no tool call
+cond     prompt  completion     total   /ep    (X / X+ only)
+P         42368      124977    167345   6973        0    0.0%       0    0.0%
+J          9433       18470     27903   1163        0    0.0%       0    0.0%
+J+         8113        9018     17131    714        0    0.0%       0    0.0%
+X        281098       63380    344478  14353        0    0.0%       4   16.7%
+X+        92071       59171    151242   6302        1    4.2%       0    0.0%
+H          4117       12814     16931    705        0    0.0%       0    0.0%
+
+  invalid  = over every proposal (per decision, as the benchmarks define it)
+  invalid* = over DISTINCT (state, request) attempts only — a repeat of a request
+             already refused from an unmoved state is counted once. Where the two
+             diverge, the condition's rate is few mistakes held for a long time
+             rather than many mistakes.
+
+  tokens are summed over every step AND every reprompt, so a condition that
+  needs re-asking is charged for it. Zero means the backend reported no usage
+  (the random floor makes no model call at all).
+  no tool call = the model answered in neither the protocol nor the stop token.
+                 A measurement, not a harness fault; cf. NTC in the benchmarks.
+
+══ qwen3.5:4b@t0 ══
+cond  class  eps  props  invalid  invalid*   refused   success   abstain   steps/ep
+P     all     24     23     8.7%      8.7%      4.3%     75.0%     50.0%        1.0
+P     T1      10      8     0.0%      0.0%      0.0%     80.0%     20.0%        0.8
+P     T2       8     14    14.3%     14.3%      7.1%     50.0%     50.0%        1.8
+P     T3       6      1     0.0%      0.0%      0.0%    100.0%    100.0%        0.2
+
+J     all     24    139    79.1%     57.6%     80.6%     54.2%     25.0%        5.8
+J     T1      10      9    11.1%     11.1%     11.1%     80.0%     20.0%        0.9
+J     T2       8     70    78.6%     58.8%     81.4%     37.5%     25.0%        8.8
+J     T3       6     60    90.0%     73.9%     90.0%     33.3%     33.3%       10.0
+
+J+    all     24    118    76.3%     54.8%     77.1%     70.8%     25.0%        4.9
+J+    T1      10     11     9.1%      9.1%      9.1%    100.0%      0.0%        1.1
+J+    T2       8     78    83.3%     61.8%     84.6%     25.0%     12.5%        9.8
+J+    T3       6     29    82.8%     70.6%     82.8%     83.3%     83.3%        4.8
+
+X     all     24    132    62.1%     43.4%     65.9%     66.7%     20.8%        5.5
+X     T1      10     21     0.0%      0.0%     23.8%     90.0%      0.0%        2.1
+X     T2       8     59    67.8%     52.5%     67.8%     50.0%     25.0%        7.4
+X     T3       6     52    80.8%     60.0%     80.8%     50.0%     50.0%        8.7
+
+X+    all     24     83     0.0%      0.0%      0.0%     70.8%     33.3%        3.5
+X+    T1      10     11     0.0%      0.0%      0.0%     80.0%     10.0%        1.1
+X+    T2       8     38     0.0%      0.0%      0.0%     62.5%     37.5%        4.8
+X+    T3       6     34     0.0%      0.0%      0.0%     66.7%     66.7%        5.7
+
+H     all     24     33     0.0%      0.0%      0.0%     83.3%     41.7%        1.4
+H     T1      10      9     0.0%      0.0%      0.0%     90.0%     10.0%        0.9
+H     T2       8     17     0.0%      0.0%      0.0%     62.5%     37.5%        2.1
+H     T3       6      7     0.0%      0.0%      0.0%    100.0%    100.0%        1.2
+
+      invalid proposals ──────────────
+cond   off-catalogue   wrong-state    stale tool   (of invalid)
+P             1    50.0%        1    50.0%        0     0.0%   2 invalid
+J             0     0.0%      110   100.0%        0     0.0%   110 invalid
+J+            0     0.0%       90   100.0%        0     0.0%   90 invalid
+X             0     0.0%       82   100.0%       82   100.0%   82 invalid
+X+            0        —        0        —        0        —   0 invalid
+H             0        —        0        —        0        —   0 invalid
+
+  off-catalogue = the named thing does not exist; the model invented it. Only P
+                  (a url nothing serves) and X / X+ (a tool never offered) can
+                  express this; picking an index out of a list cannot.
+  wrong-state   = a real operation, issued where the state does not allow it.
+
+       steps    values submitted ─────────────────────   right action,
+cond   w/prov   fixed  prefill   intent  undecl  unfnd   wrong value
+P        23/23       0        0        7       8      3      0 of   21 valid    0.0%
+J      139/139       0        0       51      20      0      2 of   29 valid    6.9%
+J+     118/118       0        0       59      19      0      1 of   28 valid    3.6%
+X      132/132       0        0       77       8      0      5 of   50 valid   10.0%
+X+       83/83       0        0       66      13      0      0 of   83 valid    0.0%
+H        33/33       2        6        3      12      0      0 of   33 valid    0.0%
+
+  w/prov = steps carrying provenance; logs predating it count as proposals but
+           contribute no values, so read the value columns against this, not props.
+  fixed/prefill = the surface carried the value   intent = the model supplied it
+  undecl = nobody did, so the harness stood in for the user
+  unfnd  = model supplied a field the control never declared (unfounded elicitation)
+  wrong value = action was legal here, but the value was refused anyway
+
+       tokens ────────────────────────────    no tool call
+cond     prompt  completion     total   /ep    (X / X+ only)
+P         14012        7681     21693    904        0    0.0%       0    0.0%
+J        122913       68327    191240   7968        0    0.0%       6   25.0%
+J+       153420      109848    263268  10970        0    0.0%       5   20.8%
+X        252199       61015    313214  13051        0    0.0%       3   12.5%
+X+        48999       31635     80634   3360        0    0.0%       0    0.0%
+H          9951       18006     27957   1165        0    0.0%       0    0.0%
+
+  invalid  = over every proposal (per decision, as the benchmarks define it)
+  invalid* = over DISTINCT (state, request) attempts only — a repeat of a request
+             already refused from an unmoved state is counted once. Where the two
+             diverge, the condition's rate is few mistakes held for a long time
+             rather than many mistakes.
+
+  tokens are summed over every step AND every reprompt, so a condition that
+  needs re-asking is charged for it. Zero means the backend reported no usage
+  (the random floor makes no model call at all).
+  no tool call = the model answered in neither the protocol nor the stop token.
+                 A measurement, not a harness fault; cf. NTC in the benchmarks.
+
+══ qwen3.5:9b@t0 ══
+cond  class  eps  props  invalid  invalid*   refused   success   abstain   steps/ep
+P     all     24     38    13.2%      8.3%      0.0%     75.0%     41.7%        1.6
+P     T1      10     10    10.0%     10.0%      0.0%     90.0%     10.0%        1.0
+P     T2       8     20    20.0%     11.1%      0.0%     50.0%     50.0%        2.5
+P     T3       6      8     0.0%      0.0%      0.0%     83.3%     83.3%        1.3
+
+J     all     24    141    80.9%     56.5%     81.6%     54.2%     12.5%        5.9
+J     T1      10     13    23.1%     23.1%     23.1%    100.0%      0.0%        1.3
+J     T2       8     76    85.5%     67.6%     86.8%     25.0%     25.0%        9.5
+J     T3       6     52    88.5%     60.0%     88.5%     16.7%     16.7%        8.7
+
+J+    all     24    146    78.1%     51.5%     78.1%     54.2%     16.7%        6.1
+J+    T1      10      9     0.0%      0.0%      0.0%     90.0%     10.0%        0.9
+J+    T2       8     83    80.7%     55.6%     80.7%     25.0%     12.5%       10.4
+J+    T3       6     54    87.0%     66.7%     87.0%     33.3%     33.3%        9.0
+
+X     all     24    104    66.3%     50.7%     69.2%     45.8%     41.7%        4.3
+X     T1      10      8    12.5%     12.5%     12.5%     70.0%     30.0%        0.8
+X     T2       8     40    77.5%     62.5%     80.0%     25.0%     62.5%        5.0
+X     T3       6     56    66.1%     51.4%     69.6%     33.3%     33.3%        9.3
+
+X+    all     24     45     0.0%      0.0%      0.0%     79.2%     41.7%        1.9
+X+    T1      10     11     0.0%      0.0%      0.0%     80.0%     10.0%        1.1
+X+    T2       8     14     0.0%      0.0%      0.0%     62.5%     37.5%        1.8
+X+    T3       6     20     0.0%      0.0%      0.0%    100.0%    100.0%        3.3
+
+H     all     24     51     0.0%      0.0%      0.0%     83.3%     33.3%        2.1
+H     T1      10     10     0.0%      0.0%      0.0%    100.0%      0.0%        1.0
+H     T2       8     25     0.0%      0.0%      0.0%     62.5%     37.5%        3.1
+H     T3       6     16     0.0%      0.0%      0.0%     83.3%     83.3%        2.7
+
+      invalid proposals ──────────────
+cond   off-catalogue   wrong-state    stale tool   (of invalid)
+P             5   100.0%        0     0.0%        0     0.0%   5 invalid
+J             0     0.0%      114   100.0%        0     0.0%   114 invalid
+J+            0     0.0%      114   100.0%        0     0.0%   114 invalid
+X             0     0.0%       69   100.0%       69   100.0%   69 invalid
+X+            0        —        0        —        0        —   0 invalid
+H             0        —        0        —        0        —   0 invalid
+
+  off-catalogue = the named thing does not exist; the model invented it. Only P
+                  (a url nothing serves) and X / X+ (a tool never offered) can
+                  express this; picking an index out of a list cannot.
+  wrong-state   = a real operation, issued where the state does not allow it.
+
+       steps    values submitted ─────────────────────   right action,
+cond   w/prov   fixed  prefill   intent  undecl  unfnd   wrong value
+P        38/38       0        0        7      13      6      0 of   33 valid    0.0%
+J      141/141       0        0       48      13      0      1 of   27 valid    3.7%
+J+     146/146       0        0       48      22      0      0 of   32 valid    0.0%
+X      104/104       0        0       32       0      0      3 of   35 valid    8.6%
+X+       45/45       0        0       36       0      0      0 of   45 valid    0.0%
+H        51/51       3        4       12       9      0      0 of   51 valid    0.0%
+
+  w/prov = steps carrying provenance; logs predating it count as proposals but
+           contribute no values, so read the value columns against this, not props.
+  fixed/prefill = the surface carried the value   intent = the model supplied it
+  undecl = nobody did, so the harness stood in for the user
+  unfnd  = model supplied a field the control never declared (unfounded elicitation)
+  wrong value = action was legal here, but the value was refused anyway
+
+       tokens ────────────────────────────    no tool call
+cond     prompt  completion     total   /ep    (X / X+ only)
+P         22514       13334     35848   1494        0    0.0%       0    0.0%
+J        127474       88149    215623   8984        0    0.0%       9   37.5%
+J+       185982      112294    298276  12428        0    0.0%       9   37.5%
+X        201600       47477    249077  10378        2    8.3%       2    8.3%
+X+        26521       17638     44159   1840        0    0.0%       0    0.0%
+H         15732       17161     32893   1371        0    0.0%       0    0.0%
+
+  invalid  = over every proposal (per decision, as the benchmarks define it)
+  invalid* = over DISTINCT (state, request) attempts only — a repeat of a request
+             already refused from an unmoved state is counted once. Where the two
+             diverge, the condition's rate is few mistakes held for a long time
+             rather than many mistakes.
+
+  tokens are summed over every step AND every reprompt, so a condition that
+  needs re-asking is charged for it. Zero means the backend reported no usage
+  (the random floor makes no model call at all).
+  no tool call = the model answered in neither the protocol nor the stop token.
+                 A measurement, not a harness fault; cf. NTC in the benchmarks.
+
+══ qwen/qwen3.8-27b@t0 ══
+cond  class  eps  props  invalid  invalid*   refused   success   abstain   steps/ep
+P     all     24     25     0.0%      0.0%      0.0%     66.7%     50.0%        1.0
+P     T1      10      7     0.0%      0.0%      0.0%     70.0%     30.0%        0.7
+P     T2       8     12     0.0%      0.0%      0.0%     50.0%     50.0%        1.5
+P     T3       6      6     0.0%      0.0%      0.0%     83.3%     83.3%        1.0
+
+J     all     24     96    63.5%     47.8%     63.5%     79.2%     29.2%        4.0
+J     T1      10     10    10.0%     10.0%     10.0%     90.0%     10.0%        1.0
+J     T2       8     30    53.3%     44.0%     53.3%     75.0%     25.0%        3.8
+J     T3       6     56    78.6%     62.5%     78.6%     66.7%     66.7%        9.3
+
+J+    all     24     41    34.1%     22.9%     34.1%     79.2%     45.8%        1.7
+J+    T1      10      9     0.0%      0.0%      0.0%     90.0%     10.0%        0.9
+J+    T2       8     18    44.4%     28.6%     44.4%     50.0%     50.0%        2.3
+J+    T3       6     14    42.9%     33.3%     42.9%    100.0%    100.0%        2.3
+
+X     all     24     44    34.1%     31.0%     34.1%     79.2%     45.8%        1.8
+X     T1      10      9    11.1%     11.1%     11.1%     80.0%     20.0%        0.9
+X     T2       8     20    40.0%     36.8%     40.0%     62.5%     37.5%        2.5
+X     T3       6     15    40.0%     35.7%     40.0%    100.0%    100.0%        2.5
+
+X+    all     24     26     0.0%      0.0%      0.0%     70.8%     45.8%        1.1
+X+    T1      10      9     0.0%      0.0%      0.0%     90.0%     10.0%        0.9
+X+    T2       8      9     0.0%      0.0%      0.0%     37.5%     62.5%        1.1
+X+    T3       6      8     0.0%      0.0%      0.0%     83.3%     83.3%        1.3
+
+H     all     24     50     0.0%      0.0%      0.0%     79.2%     37.5%        2.1
+H     T1      10      9     0.0%      0.0%      0.0%     90.0%     10.0%        0.9
+H     T2       8     16     0.0%      0.0%      0.0%     62.5%     37.5%        2.0
+H     T3       6     25     0.0%      0.0%      0.0%     83.3%     83.3%        4.2
+
+      invalid proposals ──────────────
+cond   off-catalogue   wrong-state    stale tool   (of invalid)
+P             0        —        0        —        0        —   0 invalid
+J             0     0.0%       61   100.0%        0     0.0%   61 invalid
+J+            0     0.0%       14   100.0%        0     0.0%   14 invalid
+X             0     0.0%       15   100.0%       15   100.0%   15 invalid
+X+            0        —        0        —        0        —   0 invalid
+H             0        —        0        —        0        —   0 invalid
+
+  off-catalogue = the named thing does not exist; the model invented it. Only P
+                  (a url nothing serves) and X / X+ (a tool never offered) can
+                  express this; picking an index out of a list cannot.
+  wrong-state   = a real operation, issued where the state does not allow it.
+
+       steps    values submitted ─────────────────────   right action,
+cond   w/prov   fixed  prefill   intent  undecl  unfnd   wrong value
+P        25/25       0        0       14       0      0      0 of   25 valid    0.0%
+J        96/96       0        0       36      27      0      0 of   35 valid    0.0%
+J+       41/41       0        0        7      10      0      0 of   27 valid    0.0%
+X        44/44       0        0       12       8      0      0 of   29 valid    0.0%
+X+       26/26       0        0        8       3      0      0 of   26 valid    0.0%
+H        50/50       2        0       27      11      0      0 of   50 valid    0.0%
+
+  w/prov = steps carrying provenance; logs predating it count as proposals but
+           contribute no values, so read the value columns against this, not props.
+  fixed/prefill = the surface carried the value   intent = the model supplied it
+  undecl = nobody did, so the harness stood in for the user
+  unfnd  = model supplied a field the control never declared (unfounded elicitation)
+  wrong value = action was legal here, but the value was refused anyway
+
+       tokens ────────────────────────────    no tool call
+cond     prompt  completion     total   /ep    (X / X+ only)
+P         15492        5013     20505    854        0    0.0%       0    0.0%
+J         87144       59152    146296   6096        0    0.0%       2    8.3%
+J+        44629       15255     59884   2495        0    0.0%       0    0.0%
+X         90785       36010    126795   5283        0    0.0%       0    0.0%
+X+        15757        7601     23358    973        0    0.0%       0    0.0%
+H         18086       10311     28397   1183        0    0.0%       0    0.0%
+
+  invalid  = over every proposal (per decision, as the benchmarks define it)
+  invalid* = over DISTINCT (state, request) attempts only — a repeat of a request
+             already refused from an unmoved state is counted once. Where the two
+             diverge, the condition's rate is few mistakes held for a long time
+             rather than many mistakes.
+
+  tokens are summed over every step AND every reprompt, so a condition that
+  needs re-asking is charged for it. Zero means the backend reported no usage
+  (the random floor makes no model call at all).
+  no tool call = the model answered in neither the protocol nor the stop token.
+                 A measurement, not a harness fault; cf. NTC in the benchmarks.
+
+══ random@t0 ══
+cond  class  eps  props  invalid  invalid*   refused   success   abstain   steps/ep
+J     all     24    441    90.7%     88.2%     90.7%     16.7%      0.0%       18.4
+J     T1      10    161    91.9%     89.8%     91.9%     40.0%      0.0%       16.1
+J     T2       8    160    91.3%     88.3%     91.3%      0.0%      0.0%       20.0
+J     T3       6    120    88.3%     85.9%     88.3%      0.0%      0.0%       20.0
+
+J+    all     24    422    89.6%     86.8%     89.6%     29.2%      0.0%       17.6
+J+    T1      10    163    90.2%     87.9%     90.2%     50.0%      0.0%       16.3
+J+    T2       8    139    91.4%     88.1%     91.4%     25.0%      0.0%       17.4
+J+    T3       6    120    86.7%     84.0%     86.7%      0.0%      0.0%       20.0
+
+X     all     24    413    88.4%     86.0%     88.4%     20.8%      0.0%       17.2
+X     T1      10    144    88.2%     86.0%     88.2%     40.0%      0.0%       14.4
+X     T2       8    149    91.3%     89.2%     91.3%     12.5%      0.0%       18.6
+X     T3       6    120    85.0%     82.5%     85.0%      0.0%      0.0%       20.0
+
+X+    all     24    249     0.0%      0.0%      0.0%     37.5%      0.0%       10.4
+X+    T1      10     64     0.0%      0.0%      0.0%     60.0%      0.0%        6.4
+X+    T2       8     83     0.0%      0.0%      0.0%     37.5%      0.0%       10.4
+X+    T3       6    102     0.0%      0.0%      0.0%      0.0%      0.0%       17.0
+
+H     all     24    228     0.0%      0.0%      0.0%     37.5%      0.0%        9.5
+H     T1      10     27     0.0%      0.0%      0.0%     60.0%      0.0%        2.7
+H     T2       8    103     0.0%      0.0%      0.0%     37.5%      0.0%       12.9
+H     T3       6     98     0.0%      0.0%      0.0%      0.0%      0.0%       16.3
+
+      invalid proposals ──────────────
+cond   off-catalogue   wrong-state    stale tool   (of invalid)
+J             0     0.0%      400   100.0%        0     0.0%   400 invalid
+J+            0     0.0%      378   100.0%        0     0.0%   378 invalid
+X             0     0.0%      365   100.0%        0     0.0%   365 invalid
+X+            0        —        0        —        0        —   0 invalid
+H             0        —        0        —        0        —   0 invalid
+
+  off-catalogue = the named thing does not exist; the model invented it. Only P
+                  (a url nothing serves) and X / X+ (a tool never offered) can
+                  express this; picking an index out of a list cannot.
+  wrong-state   = a real operation, issued where the state does not allow it.
+
+       steps    values submitted ─────────────────────   right action,
+cond   w/prov   fixed  prefill   intent  undecl  unfnd   wrong value
+J      441/441       0        0        0     201      0      0 of   41 valid    0.0%
+J+     422/422       0        0        0     195      0      0 of   44 valid    0.0%
+X      413/413       0        0        0     204      0      0 of   48 valid    0.0%
+X+     249/249       0        0        0     220      0      0 of  249 valid    0.0%
+H      228/228      56       50        0      55      0      0 of  228 valid    0.0%
+
+  w/prov = steps carrying provenance; logs predating it count as proposals but
+           contribute no values, so read the value columns against this, not props.
+  fixed/prefill = the surface carried the value   intent = the model supplied it
+  undecl = nobody did, so the harness stood in for the user
+  unfnd  = model supplied a field the control never declared (unfounded elicitation)
+  wrong value = action was legal here, but the value was refused anyway
+
+       tokens ────────────────────────────    no tool call
+cond     prompt  completion     total   /ep    (X / X+ only)
+J             0           0         0      0        0    0.0%       0    0.0%
+J+            0           0         0      0        0    0.0%       0    0.0%
+X             0           0         0      0        0    0.0%       0    0.0%
+X+            0           0         0      0        0    0.0%       0    0.0%
+H             0           0         0      0        0    0.0%       0    0.0%
+
+  invalid  = over every proposal (per decision, as the benchmarks define it)
+  invalid* = over DISTINCT (state, request) attempts only — a repeat of a request
+             already refused from an unmoved state is counted once. Where the two
+             diverge, the condition's rate is few mistakes held for a long time
+             rather than many mistakes.
+
+  tokens are summed over every step AND every reprompt, so a condition that
+  needs re-asking is charged for it. Zero means the backend reported no usage
+  (the random floor makes no model call at all).
+  no tool call = the model answered in neither the protocol nor the stop token.
+                 A measurement, not a harness fault; cf. NTC in the benchmarks.
+
+note: invalid = 0 is a STRUCTURAL GUARANTEE under H ONLY, and the reason is not that
+      its set is filtered — X+'s is filtered too. It is that H's agent SELECTS: it
+      returns an index, and an index outside the offered set is not a wrong answer
+      but an unrepresentable one. X+'s agent NAMES: it emits a tool name as a
+      string, and a string can be any string. Filtering decides what is OFFERED;
+      only selection decides what is EXPRESSIBLE.
+note: so X+ > 0 in this column is not a bug in the server. It is a weaker model
+      calling a tool that `tools/list` did not return — and it scales with
+      capability, while H's zero does not. Compare the arms.
+note: H wrong-value = 0 is structural too — a declared value is only rendered where
+      it is legal, so the value and its legality share one source. X+'s is not: it
+      must produce the value itself, and what a model produces can be wrong.
+note: J+ vs X is the protocol cell. Same operations, same descriptions, same
+      parameters; one is read as text and chosen by index, the other is served by
+      a real MCP server and invoked by a native tool call. A gap here would mean
+      the comparison is about the protocol; its absence is what licenses reading
+      X -> X+ as being about state-dependence.

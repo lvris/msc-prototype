@@ -20,7 +20,7 @@ import { openaiChooser, modelConfigFromEnv, randomChooser } from "../a/choose.ts
 import type { Chooser } from "../a/choose.ts";
 import { BASE, startSite } from "../b1/explore.ts";
 import { type EpisodeRecord, runEpisode, type Task } from "./episode.ts";
-import { CONDITIONS, type Condition } from "./surface.ts";
+import { CONDITIONS, CONSTRUCTS, type Condition, Surfacer } from "./surface.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +34,19 @@ const model = arg("--model", backend === "random" ? "random" : (process.env.A_MO
 const repeats = Number(arg("--repeats", "3"));
 /** first repetition index, so a later batch can extend an earlier one without redoing it. */
 const repFrom = Number(arg("--rep-from", "1"));
-const conditions = arg("--conditions", CONDITIONS.join(",")).split(",") as Condition[];
+const asked = arg("--conditions", CONDITIONS.join(",")).split(",") as Condition[];
+/**
+ * The random floor has nothing to construct FROM: it selects uniformly from an
+ * offered set, and P offers none. Dropping the cell is the honest move — a random
+ * backend that emitted made-up urls would be measuring the harness's imagination.
+ *
+ * X and X+ are NOT dropped. They do offer a set — `tools/list` produces one —
+ * and `episode.ts` lets a backend that cannot speak the protocol select from it
+ * by index instead. That keeps `random × X+` available, which is the cleanest
+ * single measurement of what the constraint achieves without any reasoning.
+ */
+const skipped = backend === "random" ? asked.filter((c) => CONSTRUCTS.has(c)) : [];
+const conditions = asked.filter((c) => !skipped.includes(c));
 const temperature = Number(arg("--temp", "0"));
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const out = arg("--out", join(HERE, "logs", `${model.replace(/[^\w.-]/g, "_")}-${stamp}.jsonl`));
@@ -56,10 +68,24 @@ const tasks = only ? all.filter((t) => only.split(",").some((p) => t.id.startsWi
 await startSite();
 mkdirSync(dirname(out), { recursive: true });
 
+/**
+ * Opened once for the whole run, not per episode: X and X+ each spawn an MCP
+ * server process, and restarting them 132 times would buy nothing but latency.
+ * The servers are stateless with respect to the booking — they read the site
+ * over HTTP — so one process spans every episode safely.
+ */
+const surfacer = await Surfacer.open({ base: BASE, conditions });
+
 console.log(
   `backend=${backend} model=${model} temp=${temperature} reps=${repFrom}..${repFrom + repeats - 1} ` +
     `conditions=${conditions.join(",")}`,
 );
+if (skipped.length > 0) {
+  console.log(
+    `⚠ skipping ${skipped.join(",")}: the "${backend}" backend selects from an offered set ` +
+      `and these conditions offer none.`,
+  );
+}
 if (backend !== "random" && temperature === 0 && repeats > 1) {
   console.log("⚠ temperature 0 is greedy: repeats will reproduce the same trajectory, not sample it.");
 }
@@ -76,7 +102,8 @@ for (let rep = repFrom; rep < repFrom + repeats; rep++) {
       let rec: EpisodeRecord;
       try {
         rec = await runEpisode({
-          base: BASE, task, condition, chooser: chooserFor(rep, task.id, condition), model, temperature, runId,
+          base: BASE, task, condition, surfacer,
+          chooser: chooserFor(rep, task.id, condition), model, temperature, runId,
         });
       } catch (e) {
         rec = {
@@ -98,5 +125,6 @@ for (let rep = repFrom; rep < repFrom + repeats; rep++) {
   }
 }
 
+await surfacer.close();
 console.log(`\ndone → ${out}`);
 process.exit(0);

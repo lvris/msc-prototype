@@ -61,7 +61,7 @@ const ABANDONING: ActionId[] = [
  * set turning into a benchmark in its own right; selection within a class is by
  * shortest witness, so it is reproducible and never a judgement call.
  */
-const QUOTA = { T1: 10, T2: 6, T3: 6 } as const;
+const QUOTA = { T1: 10, T2: 8, T3: 6 } as const;
 
 await startSite();
 const graph: Graph = await explore();
@@ -196,18 +196,36 @@ function pick(candidates: Candidate[], quota: number, key: (c: Candidate) => str
 
   const chosen: Candidate[] = [];
   const used = new Map<string, number>();
+  /**
+   * How many tasks each INTENT has already contributed.
+   *
+   * Without this the quota fills by cost once the discriminating candidates are
+   * exhausted, and cost correlates with depth — so the set piles up on the
+   * intents nearest the root and leaves others with no task at all. The first
+   * derivation covered ten start states but only eight intents, and the ones it
+   * dropped (`add_dish`, `secure_table`, `start_preorder`) are exactly the ones
+   * whose actions take a value the server constrains. A task set that never asks
+   * for a dish cannot observe anything about supplying a dish.
+   *
+   * Ranked after `discriminating`, which stays first: the gates are the reason
+   * the state machine exists, and covering the action space must not cost the
+   * two cases the whole design was built to produce.
+   */
+  const perIntent = new Map<string, number>();
   while (chosen.length < quota) {
     const next = pool
       .filter((c) => !chosen.includes(c))
       .sort(
         (a, b) =>
           discriminating(a) - discriminating(b) ||
+          (perIntent.get(a.intent.id) ?? 0) - (perIntent.get(b.intent.id) ?? 0) ||
           (used.get(a.node.session.status) ?? 0) - (used.get(b.node.session.status) ?? 0) ||
           cost(a) - cost(b),
       )[0];
     if (!next) break;
     chosen.push(next);
     used.set(next.node.session.status, (used.get(next.node.session.status) ?? 0) + 1);
+    perIntent.set(next.intent.id, (perIntent.get(next.intent.id) ?? 0) + 1);
   }
   return chosen;
 }

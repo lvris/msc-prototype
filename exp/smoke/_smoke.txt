@@ -1,0 +1,16 @@
+B1 restaurant-booking site → http://localhost:3999
+backend=openai model=qwen/qwen3.8-27b:free temp=0 reps=1..1 conditions=P,J,J+,X,X+,H
+tasks=2  episodes=12
+log → exp/smoke/qwen3.8-27b-free-smoke.jsonl
+
+  model HTTP 429, retry 1 in 3s
+  model HTTP 429, retry 2 in 6s
+  model HTTP 429, retry 3 in 12s
+  model HTTP 429, retry 4 in 24s
+[  1/12] P  T1-01 ✗ steps=0 invalid=0 (agent_stop)
+  model HTTP 429, retry 1 in 3s
+  model HTTP 429, retry 2 in 6s
+  model HTTP 429, retry 3 in 12s
+  model HTTP 429, retry 4 in 24s
+  model HTTP 429, retry 5 in 48s
+  model HTTP 429, retry 6 in 60s

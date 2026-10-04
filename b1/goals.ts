@@ -52,7 +52,24 @@ export const INTENTS: Intent[] = [
     actions: ["discard_draft"],
   },
   { id: "start_preorder", goal: "We would like to order the food in advance.", actions: ["open_preorder"] },
+  /**
+   * Two ways to ask for the same action, and the pair is the point.
+   *
+   * `add_dish` names the dish almost as the kitchen spells it; `add_dish_vague`
+   * names it the way people actually order — by what it is, not by its entry on
+   * the menu. Only the second one requires knowing what the permitted values
+   * ARE, and the permitted values are server state: a rendered `<select>` lists
+   * them, a parameter typed `string` does not.
+   *
+   * Keeping both is deliberate. With only the first, the comparison is rigged in
+   * favour of every condition (any of them can copy a matching word out of the
+   * goal). With only the second it is rigged against them. Together they say
+   * something neither says alone: where the guest's words happen to match the
+   * enumeration every condition succeeds, and where they do not, only the one
+   * carrying the enumeration does.
+   */
   { id: "add_dish", goal: "Add the tiramisù to what we are ordering ahead.", actions: ["add_dish"] },
+  { id: "add_dish_vague", goal: "Add the pasta dish to the advance order.", actions: ["add_dish"] },
   { id: "remove_dish", goal: "Take that dish off the advance order.", actions: ["remove_dish"] },
   { id: "send_preorder", goal: "Send the advance food order to the kitchen.", actions: ["submit_preorder"] },
   { id: "see_confirmation", goal: "Show me the confirmation for the booking.", actions: ["view_confirmation"] },

@@ -15,14 +15,23 @@
  *       only in a hidden slot are five affordances, not one (regression).
  *   A4  A carries no site-specific knowledge: nothing under a/ names the site.
  *
+ * The same set has a second consumer, and its claims are checked here too:
+ *
+ *   R1  there is NO MODEL in the rendering path — asserted against render.ts's
+ *       own source, since that is what the claim is about.
+ *   R2  one affordance renders to exactly one control, deterministically.
+ *   R3  the declared fields survive rendering: each becomes either something the
+ *       user may set or something the control fixes, and never both.
+ *
  * Requires a running site (`A_BASE`, default http://localhost:3000).
  */
 
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { affordanceKey } from "./affordance.ts";
+import { type Affordance, affordanceKey } from "./affordance.ts";
 import { discover } from "./discover.ts";
+import { render, renderControl } from "./render.ts";
 import { prepareValues, replay } from "./replay.ts";
 
 export {};
@@ -103,11 +112,14 @@ seen.add(stateId(first));
 queue.push(first);
 
 let comparisons = 0;
+/** every control the walk perceived, so R2/R3 can be asserted over all of them. */
+const allPerceived: Affordance[] = [];
 while (queue.length > 0 && seen.size < MAX_STATES) {
   const state = queue.shift()!;
   await pin(state);
   const t = await truth();
   const perceived = discover(await html());
+  allPerceived.push(...perceived);
 
   // A1: both inclusions, keyed by (method, url, field name=value).
   const mine = new Set(perceived.map(affordanceKey));
@@ -223,11 +235,91 @@ assert(holdKeys.size === holds.length, `A3 they do not collapse into one (${hold
 const hiddenValues = new Set(holds.map((a) => a.fields.find((f) => f.name === "slot")?.value));
 assert(hiddenValues.size === holds.length, `A3 each carries its own hidden value: ${[...hiddenValues].join(", ")}`);
 
+// ── R1 — no model in the rendering path ─────────────────────────────────────
+//
+// The design chapter says a control can be drawn directly from an affordance,
+// "with no model in the rendering path and no task-specific component registry".
+// That is a claim about this codebase, so it is checked against the source rather
+// than trusted. Comments are stripped first: render.ts's own header explains at
+// length that there is no model in it, and a scan of the raw text would flag the
+// documentation of the property as a violation of it.
+
+section("R1 — the renderer is a pure function of the affordance");
+
+const here = dirname(fileURLToPath(import.meta.url));
+const renderSrc = readFileSync(join(here, "render.ts"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/\/\/.*$/gm, "");
+
+const imports = [...renderSrc.matchAll(/^\s*import\s[^;]*?from\s*["']([^"']+)["']/gm)].map((m) => m[1]);
+const before = failures.length;
+assert(
+  imports.length === 1 && imports[0] === "./affordance.ts",
+  `R1 render.ts imports only the affordance shape (got: ${imports.join(", ") || "none"})`,
+);
+for (const forbidden of ["fetch(", "choose", "Chooser", "model", "prompt", "await "]) {
+  assert(!renderSrc.includes(forbidden), `R1 render.ts contains no "${forbidden}"`);
+}
+if (failures.length === before) {
+  console.log(`  render.ts: 1 import, no i/o, no chooser, nothing asynchronous`);
+}
+
+// ── R2 — one affordance, one control ────────────────────────────────────────
+
+section("R2 — rendering is one-for-one with the affordance set");
+
+const controls = render(allPerceived);
+assert(controls.length === allPerceived.length, `R2 no control is invented or dropped`);
+for (let i = 0; i < allPerceived.length; i++) {
+  assert(
+    controls[i].key === affordanceKey(allPerceived[i]),
+    `R2 control ${i} keeps its affordance's identity`,
+  );
+}
+// Rendering the same affordance twice must give the same control: no hidden
+// state, no counter, no randomness anywhere in the path.
+for (const a of allPerceived.slice(0, 200)) {
+  assert(
+    JSON.stringify(renderControl(a)) === JSON.stringify(renderControl(a)),
+    `R2 rendering is deterministic: ${affordanceKey(a)}`,
+  );
+}
+console.log(`  rendered ${controls.length} controls from ${allPerceived.length} affordances`);
+
+// ── R3 — the fields survive rendering ───────────────────────────────────────
+
+section("R3 — every declared field is accounted for, and nothing else appears");
+
+let widgets = 0;
+let fixedValues = 0;
+let degraded = 0;
+for (let i = 0; i < allPerceived.length; i++) {
+  const a = allPerceived[i];
+  const c = controls[i];
+  const declared = [...a.fields.map((f) => f.name)].sort();
+  const accounted = [...c.widgets.map((w) => w.field), ...Object.keys(c.fixed)].sort();
+  assert(
+    JSON.stringify(declared) === JSON.stringify(accounted),
+    `R3 ${c.key}: fields in == fields out (${declared.join(",")} vs ${accounted.join(",")})`,
+  );
+  // A field is EITHER the user's or the control's, never both: a value the
+  // control fixes must not also be presented as something to fill in.
+  for (const w of c.widgets) {
+    assert(!(w.field in c.fixed), `R3 ${c.key}: ${w.field} is not both fixed and editable`);
+  }
+  widgets += c.widgets.length;
+  fixedValues += Object.keys(c.fixed).length;
+  degraded += c.widgets.filter((w) => w.degraded).length;
+}
+console.log(
+  `  ${widgets} widgets + ${fixedValues} values fixed by their control; ` +
+    `${degraded} field(s) fell back to a text box`,
+);
+
 // ── A4 — A carries no site-specific knowledge ───────────────────────────────
 
 section("A4 — nothing under a/ names a site");
 
-const here = dirname(fileURLToPath(import.meta.url));
 const SITE_NAMES = /\bb[0-9]+\b/;
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -237,6 +329,46 @@ function walk(dir: string): string[] {
 for (const file of walk(here)) {
   const hit = readFileSync(file, "utf8").split("\n").findIndex((l) => SITE_NAMES.test(l));
   assert(hit === -1, `A4 ${file.slice(here.length + 1)} names no site (line ${hit + 1})`);
+}
+
+// ── A5 — nobody on the client side reads the harness's oracle ────────────────
+
+/**
+ * `GET /__session` returns `validAffordances(session)` — the answer the whole
+ * evaluation is measuring. The site is allowed to consult it — its renderer and
+ * its own tool server both do, and a server knowing its own state is the
+ * premise rather than the conclusion. Anything on the CLIENT side reading it
+ * would be the harness supplying the result it claims to observe.
+ *
+ * The risk is sharpest for the MCP conditions. X+ is narrow because the SERVER
+ * narrowed `tools/list`; if `exp/mcp-client.ts` peeked at the session instead,
+ * X+ would measure our code rather than the protocol. So that one file is
+ * checked alongside `a/`, even though it lives in `exp/`.
+ *
+ * Comments are stripped first. Both files DISCUSS the oracle by name in prose —
+ * including the paragraph you are reading — and a raw scan would convict them of
+ * the thing the prose promises they do not do.
+ *
+ * This file is excluded from its own scan, and that is not a loophole. A checker
+ * for "nobody names this endpoint" has to name the endpoint, in code, to look
+ * for it; and `check.ts` is not part of what the agent runs. The claim is about
+ * the agent's runtime modules, and those are what is scanned.
+ */
+section("A5 — the client side never reads the harness oracle");
+
+const ORACLE = /__session/;
+const stripComments = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+const clientSide = [
+  ...walk(here).filter((f) => !f.endsWith("check.ts")),
+  join(here, "..", "exp", "mcp-client.ts"),
+];
+for (const file of clientSide) {
+  const hit = stripComments(readFileSync(file, "utf8"))
+    .split("\n")
+    .findIndex((l) => ORACLE.test(l));
+  assert(hit === -1, `A5 ${file.replace(/\\/g, "/").split("/").slice(-2).join("/")} does not read /__session`);
 }
 
 // ── summary ─────────────────────────────────────────────────────────────────
